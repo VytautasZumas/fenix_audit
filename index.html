@@ -1052,6 +1052,46 @@ a { color: var(--accent-amber); text-decoration: none; }
 @keyframes pulse-icon {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
+
+/* --- WEBCAM STYLING --- */
+.image-buttons-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.image-buttons-group button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#webcamContainer {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #0d0f12;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-primary);
+}
+#webcamVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.spinner-webcam {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-radius: 50%;
+  border-top-color: var(--accent-blue);
+  animation: spin-webcam 0.8s linear infinite;
+}
+@keyframes spin-webcam {
+  to { transform: rotate(360deg); }
 }
 </style>
 </head>
@@ -1184,7 +1224,10 @@ a { color: var(--accent-amber); text-decoration: none; }
     <div id="tabAttachments" class="tab-content">
       <div class="flex-between mb-16">
         <span style="font-size:0.9rem;color:var(--text-secondary);">Imagens vinculadas ao caso</span>
-        <button class="btn btn-primary btn-sm" onclick="triggerFileInput()">＋ Adicionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-primary btn-sm" onclick="triggerFileInput()">📁 Adicionar arquivo</button>
+          <button class="btn btn-primary btn-sm" onclick="openWebcamCapture('fileInputHidden')">📷 Usar câmera</button>
+        </div>
       </div>
       <input type="file" id="fileInputHidden" accept="image/*" capture="environment" style="display:none;" onchange="handleFileSelected(event)">
       <div id="attachmentsContainer"></div>
@@ -1314,7 +1357,10 @@ a { color: var(--accent-amber); text-decoration: none; }
       </div>
       <div class="form-group">
         <label class="form-label">Imagem de evidência (opcional)</label>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('seedImageInput').click()">📷 Selecionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('seedImageInput').click()">📁 Escolher Arquivo</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openWebcamCapture('seedImageInput')">📷 Usar Câmera</button>
+        </div>
         <input type="file" id="seedImageInput" accept="image/*" style="display:none;" onchange="handleSeedImageSelect(event)">
         <div id="seedImgPreviewContainer"></div>
       </div>
@@ -1353,7 +1399,10 @@ a { color: var(--accent-amber); text-decoration: none; }
       </div>
       <div class="form-group">
         <label class="form-label">Imagem de evidência (opcional)</label>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('txImageInput').click()">📷 Selecionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('txImageInput').click()">📁 Escolher Arquivo</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openWebcamCapture('txImageInput')">📷 Usar Câmera</button>
+        </div>
         <input type="file" id="txImageInput" accept="image/*" style="display:none;" onchange="handleTxImageSelect(event)">
         <div id="txImgPreviewContainer"></div>
       </div>
@@ -1383,7 +1432,10 @@ a { color: var(--accent-amber); text-decoration: none; }
       </div>
       <div class="form-group">
         <label class="form-label">Imagem do processo (opcional)</label>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('recoveryImageInput').click()">📷 Selecionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('recoveryImageInput').click()">📁 Escolher Arquivo</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openWebcamCapture('recoveryImageInput')">📷 Usar Câmera</button>
+        </div>
         <input type="file" id="recoveryImageInput" accept="image/*" style="display:none;" onchange="handleRecoveryImageSelect(event)">
         <div id="recoveryImgPreviewContainer"></div>
       </div>
@@ -1427,7 +1479,10 @@ a { color: var(--accent-amber); text-decoration: none; }
       </div>
       <div class="form-group">
         <label class="form-label">Foto da entrega (opcional)</label>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('deliveryImageInput').click()">📷 Selecionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('deliveryImageInput').click()">📁 Escolher Arquivo</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openWebcamCapture('deliveryImageInput')">📷 Usar Câmera</button>
+        </div>
         <input type="file" id="deliveryImageInput" accept="image/*" style="display:none;" onchange="handleDeliveryImageSelect(event)">
         <div id="deliveryImgPreviewContainer"></div>
       </div>
@@ -1457,7 +1512,10 @@ a { color: var(--accent-amber); text-decoration: none; }
       </div>
       <div class="form-group">
         <label class="form-label">Foto do objeto (opcional)</label>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('locationImageInput').click()">📷 Selecionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('locationImageInput').click()">📁 Escolher Arquivo</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openWebcamCapture('locationImageInput')">📷 Usar Câmera</button>
+        </div>
         <input type="file" id="locationImageInput" accept="image/*" style="display:none;" onchange="handleLocationImageSelect(event)">
         <div id="locationImgPreviewContainer"></div>
       </div>
@@ -1491,7 +1549,10 @@ a { color: var(--accent-amber); text-decoration: none; }
     <div id="otherFields" class="other-fields">
       <div class="form-group" style="margin-top:12px;">
         <label class="form-label">Imagem de evidência (opcional)</label>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('otherImageInput').click()">📷 Selecionar imagem</button>
+        <div class="image-buttons-group">
+          <button class="btn btn-secondary btn-sm" type="button" onclick="document.getElementById('otherImageInput').click()">📁 Escolher Arquivo</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="openWebcamCapture('otherImageInput')">📷 Usar Câmera</button>
+        </div>
         <input type="file" id="otherImageInput" accept="image/*" style="display:none;" onchange="handleOtherImageSelect(event)">
         <div id="otherImgPreviewContainer"></div>
       </div>
@@ -1507,6 +1568,34 @@ a { color: var(--accent-amber); text-decoration: none; }
 <!-- ========== MODAL: PREVIEW IMAGEM ========== -->
 <div id="imgPreviewOverlay" class="img-preview-overlay" onclick="closeImagePreview()">
   <img id="imgPreviewImg" src="" alt="Preview">
+</div>
+
+<!-- ========== MODAL: CAPTURA DE WEBCAM ========== -->
+<div id="modalWebcamCapture" class="modal-overlay">
+  <div class="modal" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="color: var(--accent-blue); display: flex; align-items: center; gap: 8px;">📷 Captura de Câmera</h3>
+      <button class="modal-close" onclick="closeWebcamModal()">&times;</button>
+    </div>
+    <div style="margin: 16px 0; text-align: center;">
+      <div id="webcamContainer">
+        <video id="webcamVideo" autoplay playsinline></video>
+        <div id="webcamLoading" style="position: absolute; color: #fff; font-size: 0.9rem; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <div class="spinner-webcam"></div>
+          <span>Acessando câmera...</span>
+        </div>
+      </div>
+      <!-- Seleção de Câmeras -->
+      <div id="webcamDeviceSelectContainer" style="margin-top: 12px; display: none; text-align: left;">
+        <label class="form-label" style="font-size: 0.8rem; margin-bottom: 4px;">Selecionar Câmera</label>
+        <select id="webcamDeviceSelect" class="form-select" style="font-size: 0.85rem; padding: 6px 12px;" onchange="switchWebcam(this.value)"></select>
+      </div>
+    </div>
+    <div class="modal-actions" style="justify-content: space-between; margin-top: 16px;">
+      <button class="btn btn-secondary" onclick="closeWebcamModal()">Cancelar</button>
+      <button id="btnCapturePhoto" class="btn btn-primary" onclick="capturePhoto()" disabled>📸 Tirar Foto</button>
+    </div>
+  </div>
 </div>
 
 <!-- ========== TOAST CONTAINER ========== -->
@@ -3273,6 +3362,249 @@ async function addAttachmentToCase(caseId, file, originLabel) {
   return attachment;
 }
 
+/* ========================================
+   WEBCAM CAPTURE CONTROL
+   ======================================== */
+
+let webcamStream = null;
+let currentWebcamInputId = null;
+
+async function openWebcamCapture(inputId) {
+  currentWebcamInputId = inputId;
+  openModal('modalWebcamCapture');
+
+  const videoEl = document.getElementById('webcamVideo');
+  const loadingEl = document.getElementById('webcamLoading');
+  const captureBtn = document.getElementById('btnCapturePhoto');
+  const selectContainer = document.getElementById('webcamDeviceSelectContainer');
+  const selectEl = document.getElementById('webcamDeviceSelect');
+
+  loadingEl.style.display = 'flex';
+  captureBtn.disabled = true;
+  selectContainer.style.display = 'none';
+  selectEl.innerHTML = '';
+
+  if (webcamStream) {
+    stopWebcamStream();
+  }
+
+  try {
+    // Try environment facing mode (rear camera) by default for evidence taking
+    const constraints = {
+      video: {
+        facingMode: { ideal: "environment" }
+      },
+      audio: false
+    };
+
+    webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = webcamStream;
+    videoEl.onloadedmetadata = () => {
+      loadingEl.style.display = 'none';
+      captureBtn.disabled = false;
+    };
+
+    // Enumerate devices to allow switching
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+    if (videoDevices.length > 1) {
+      videoDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `Câmera ${index + 1}`;
+        selectEl.appendChild(option);
+      });
+
+      const activeTrack = webcamStream.getVideoTracks()[0];
+      if (activeTrack) {
+        const settings = activeTrack.getSettings();
+        if (settings.deviceId) {
+          selectEl.value = settings.deviceId;
+        }
+      }
+      selectContainer.style.display = 'block';
+    }
+  } catch (err) {
+    console.error("Erro ao acessar câmera: ", err);
+    showToast("Erro ao acessar a câmera. Verifique se as permissões foram concedidas.", "error");
+    closeWebcamModal();
+  }
+}
+
+async function switchWebcam(deviceId) {
+  if (!webcamStream) return;
+  stopWebcamStream();
+
+  const videoEl = document.getElementById('webcamVideo');
+  const loadingEl = document.getElementById('webcamLoading');
+  const captureBtn = document.getElementById('btnCapturePhoto');
+
+  loadingEl.style.display = 'flex';
+  captureBtn.disabled = true;
+
+  try {
+    const constraints = {
+      video: { deviceId: { exact: deviceId } },
+      audio: false
+    };
+    webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+    videoEl.srcObject = webcamStream;
+    videoEl.onloadedmetadata = () => {
+      loadingEl.style.display = 'none';
+      captureBtn.disabled = false;
+    };
+  } catch (err) {
+    console.error("Erro ao alternar câmera: ", err);
+    showToast("Erro ao alternar para esta câmera.", "error");
+  }
+}
+
+function stopWebcamStream() {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(track => track.stop());
+    webcamStream = null;
+  }
+  const videoEl = document.getElementById('webcamVideo');
+  if (videoEl) videoEl.srcObject = null;
+}
+
+function closeWebcamModal() {
+  stopWebcamStream();
+  closeModal('modalWebcamCapture');
+}
+
+async function capturePhoto() {
+  if (!webcamStream || !currentWebcamInputId) return;
+
+  const videoEl = document.getElementById('webcamVideo');
+  const canvas = document.createElement('canvas');
+
+  // Limit dimensions to 1280x960 to conserve storage space and speed up signing/PDFs
+  const maxW = 1280;
+  const maxH = 960;
+  let w = videoEl.videoWidth || 640;
+  let h = videoEl.videoHeight || 480;
+
+  if (w > maxW || h > maxH) {
+    const scale = Math.min(maxW / w, maxH / h);
+    w = Math.floor(w * scale);
+    h = Math.floor(h * scale);
+  }
+
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(videoEl, 0, 0, w, h);
+
+  closeWebcamModal();
+  showToast("Processando imagem capturada...", "info");
+
+  try {
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    await handleCapturedImage(currentWebcamInputId, dataUrl);
+  } catch (err) {
+    console.error("Erro ao processar imagem capturada: ", err);
+    showToast("Erro ao processar imagem capturada.", "error");
+  }
+}
+
+async function addCapturedAttachmentToCase(caseId, dataUrl) {
+  const id = "att-" + Date.now().toString() + "-" + Math.floor(Math.random() * 1000);
+  const now = new Date().toISOString();
+  const fileHash = await computeSha256Hex(dataUrl);
+
+  const base64Str = dataUrl.split(',')[1];
+  const sizeBytes = Math.floor((base64Str.length * 3) / 4);
+
+  const attachment = {
+    id,
+    caseId,
+    fileName: `captura_${Date.now()}.jpg`,
+    mimeType: "image/jpeg",
+    sizeBytes: sizeBytes,
+    createdAt: now,
+    origin: "camera",
+    dataBase64: dataUrl,
+    fileHash
+  };
+
+  if (!appState.attachmentsByCase[caseId]) {
+    appState.attachmentsByCase[caseId] = [];
+  }
+  appState.attachmentsByCase[caseId].push(attachment);
+
+  const evt = await createCustodyEvent(caseId, "ANEXO_IMAGEM", "Imagem capturada pela câmera: " + attachment.fileName, {
+    attachmentId: id,
+    fileHash: fileHash
+  });
+  if (!appState.eventsByCase[caseId]) {
+    appState.eventsByCase[caseId] = [];
+  }
+  appState.eventsByCase[caseId].push(evt);
+
+  await saveStateToDb();
+  return attachment;
+}
+
+async function handleCapturedImage(inputId, dataUrl) {
+  if (inputId === 'fileInputHidden') {
+    try {
+      const att = await addCapturedAttachmentToCase(currentCaseId, dataUrl);
+      renderAttachments(currentCaseId);
+      showToast("Imagem anexada da câmera com sucesso!", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Erro ao anexar imagem da câmera ao caso.", "error");
+    }
+    return;
+  }
+
+  if (inputId === 'seedImageInput') {
+    window._seedImageDataUrl = dataUrl;
+    document.getElementById('seedImgPreviewContainer').innerHTML = `
+      <div style="position:relative;display:inline-block;margin-top:8px;">
+        <img src="${dataUrl}" style="max-width:100%;max-height:160px;border-radius:var(--radius-sm);border:1px solid var(--border-primary);" alt="Preview">
+        <button onclick="removeSeedImage()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.9rem;line-height:1;">&times;</button>
+      </div>`;
+  } else if (inputId === 'txImageInput') {
+    window._txImageDataUrl = dataUrl;
+    document.getElementById('txImgPreviewContainer').innerHTML = `
+      <div style="position:relative;display:inline-block;margin-top:8px;">
+        <img src="${dataUrl}" style="max-width:100%;max-height:160px;border-radius:var(--radius-sm);border:1px solid var(--border-primary);" alt="Preview">
+        <button onclick="removeTxImage()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.9rem;line-height:1;">&times;</button>
+      </div>`;
+  } else if (inputId === 'recoveryImageInput') {
+    window._recoveryImageDataUrl = dataUrl;
+    document.getElementById('recoveryImgPreviewContainer').innerHTML = `
+      <div class="recovery-img-preview-container">
+        <img src="${dataUrl}" class="recovery-img-preview" alt="Preview">
+        <button class="recovery-img-remove" onclick="removeRecoveryImage()" title="Remover">&times;</button>
+      </div>`;
+  } else if (inputId === 'deliveryImageInput') {
+    window._deliveryImageDataUrl = dataUrl;
+    document.getElementById('deliveryImgPreviewContainer').innerHTML = `
+      <div class="delivery-img-preview-container">
+        <img src="${dataUrl}" class="delivery-img-preview" alt="Preview">
+        <button class="delivery-img-remove" onclick="removeDeliveryImage()" title="Remover">&times;</button>
+      </div>`;
+  } else if (inputId === 'locationImageInput') {
+    window._locationImageDataUrl = dataUrl;
+    document.getElementById('locationImgPreviewContainer').innerHTML = `
+      <div class="location-img-preview-container">
+        <img src="${dataUrl}" class="location-img-preview" alt="Preview">
+        <button class="location-img-remove" onclick="removeLocationImage()" title="Remover">&times;</button>
+      </div>`;
+  } else if (inputId === 'otherImageInput') {
+    window._otherImageDataUrl = dataUrl;
+    document.getElementById('otherImgPreviewContainer').innerHTML = `
+      <div style="position:relative;display:inline-block;margin-top:8px;">
+        <img src="${dataUrl}" style="max-width:100%;max-height:160px;border-radius:var(--radius-sm);border:1px solid var(--border-primary);" alt="Preview">
+        <button onclick="removeOtherImage()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.9rem;line-height:1;">&times;</button>
+      </div>`;
+  }
+}
+
 function renderAttachments(caseId) {
   const container = document.getElementById("attachmentsContainer");
   const attachments = getAttachmentsForCase(caseId);
@@ -3282,7 +3614,10 @@ function renderAttachments(caseId) {
       <div class="empty-state">
         <div class="empty-state-icon">📷</div>
         <div class="empty-state-text">Nenhum anexo</div>
-        <button class="btn btn-primary btn-sm" onclick="triggerFileInput()">＋ Adicionar imagem</button>
+        <div class="image-buttons-group" style="justify-content: center; width: 100%;">
+          <button class="btn btn-primary btn-sm" onclick="triggerFileInput()">📁 Adicionar arquivo</button>
+          <button class="btn btn-primary btn-sm" onclick="openWebcamCapture('fileInputHidden')">📷 Usar câmera</button>
+        </div>
       </div>`;
     return;
   }
