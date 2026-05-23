@@ -1010,6 +1010,49 @@ a { color: var(--accent-amber); text-decoration: none; }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }
 .gap-8 { gap: 8px; }
 
+/* Drag and Drop Overlay */
+.drag-drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  pointer-events: none;
+  border: 4px dashed var(--accent-amber);
+  margin: 16px;
+  border-radius: var(--radius-lg);
+  transition: opacity var(--transition-med);
+  opacity: 0;
+}
+
+.drag-drop-overlay.active {
+  display: flex;
+  opacity: 1;
+}
+
+.drag-drop-box {
+  text-align: center;
+  pointer-events: none;
+}
+
+.drag-drop-icon {
+  font-size: 3.5rem;
+  margin-bottom: 16px;
+  animation: pulse-icon 1.5s infinite ease-in-out;
+}
+
+.drag-drop-text {
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
 </style>
 </head>
 <body>
@@ -1085,9 +1128,13 @@ a { color: var(--accent-amber); text-decoration: none; }
       </div>
     </div>
 
-    <div class="flex-between mb-16">
-      <h2 style="font-size:1.15rem;">Casos</h2>
-      <button class="btn btn-primary btn-sm" onclick="openNewCaseModal()">＋ Novo caso</button>
+    <div class="flex-between mb-16" style="gap:8px; flex-wrap:wrap;">
+      <h2 style="font-size:1.15rem; margin:0;">Casos</h2>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importFileInput').click()">📥 Importar caso</button>
+        <button class="btn btn-primary btn-sm" onclick="openNewCaseModal()">＋ Novo caso</button>
+      </div>
+      <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="handleImportJson(event)">
     </div>
 
     <div id="caseListContainer"></div>
@@ -1465,6 +1512,64 @@ a { color: var(--accent-amber); text-decoration: none; }
 <!-- ========== TOAST CONTAINER ========== -->
 <div id="toastContainer" class="toast-container"></div>
 
+<!-- ========== MODAL: CONFLITO DE IMPORTAÇÃO ========== -->
+<div id="modalImportConflict" class="modal-overlay">
+  <div class="modal" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="color: var(--accent-red); display: flex; align-items: center; gap: 8px;">⚠️ Conflito de Importação</h3>
+      <button class="modal-close" onclick="closeModal('modalImportConflict')">&times;</button>
+    </div>
+    <div style="margin: 16px 0; font-size: 0.9rem; line-height: 1.5; color: var(--text-primary);">
+      O caso de número <strong id="conflictCaseNumber">—</strong> já existe localmente. O que você gostaria de fazer?
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+      <button class="btn btn-danger" onclick="resolveImportConflict('overwrite')" style="justify-content: flex-start; text-align: left; padding: 14px 16px; border-radius: var(--radius-md); display: block; width: 100%;">
+        💥 <strong style="display:inline-block; margin-bottom: 2px;">Sobrescrever</strong>
+        <span style="font-weight: normal; font-size: 0.8rem; opacity: 0.85; display: block;">Substitui completamente o caso local, seus eventos e anexos correspondentes.</span>
+      </button>
+      <button class="btn btn-secondary" onclick="resolveImportConflict('copy')" style="justify-content: flex-start; text-align: left; padding: 14px 16px; border-radius: var(--radius-md); display: block; width: 100%;">
+        📂 <strong style="display:inline-block; margin-bottom: 2px;">Importar como cópia</strong>
+        <span style="font-weight: normal; font-size: 0.8rem; opacity: 0.85; display: block;">Gera um novo ID único para o caso e adiciona o sufixo "(Cópia)" ao título.</span>
+      </button>
+    </div>
+    <div class="modal-actions" style="margin-top: 0; justify-content: flex-end;">
+      <button class="btn btn-ghost" onclick="closeModal('modalImportConflict')" style="padding: 8px 16px;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL: RE-ASSINATURA DIGITAL NA IMPORTAÇÃO ========== -->
+<div id="modalImportReSign" class="modal-overlay">
+  <div class="modal" style="max-width: 580px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="color: var(--accent-green); display: flex; align-items: center; gap: 8px;">🔒 Assinaturas do Caso Importado</h3>
+      <button class="modal-close" onclick="closeModal('modalImportReSign')">&times;</button>
+    </div>
+    <div style="margin: 12px 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary);">
+      Este caso contém assinaturas digitais. Devido à cópia, elas tornaram-se inválidas sob a nova identidade (ID do caso). Peça para os signatários informarem seus telefones/senhas abaixo para re-assinar e restabelecer a integridade:
+    </div>
+    <div id="reSignListContainer" style="display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; padding: 4px; margin-bottom: 16px;">
+      <!-- Itens dinâmicos inseridos via JS -->
+    </div>
+    <div class="modal-actions" style="margin-top: 0; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0; flex: 1; min-width: 200px;">
+        * Itens não re-assinados serão importados com as assinaturas originais (que aparecerão como inválidas).
+      </p>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-primary" onclick="finishImportWithReSign()" style="padding: 10px 20px;">Finalizar Importação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== OVERLAY: ARRASTAR E SOLTAR (DRAG & DROP) ========== -->
+<div id="dragDropOverlay" class="drag-drop-overlay">
+  <div class="drag-drop-box">
+    <div class="drag-drop-icon">📥</div>
+    <div class="drag-drop-text">Solte o arquivo .json do caso aqui para importar</div>
+  </div>
+</div>
+
 <!-- ======================================================
      JAVASCRIPT — FÊNIX AUDIT LITE
      ====================================================== -->
@@ -1708,6 +1813,55 @@ async function verifyDigitalSignature(dataString, signatureHex, publicKeyJwk) {
   }
 }
 
+async function decryptPrivateKey(encryptedPrivateKey, passphrase) {
+  try {
+    const salt = hexToBuf(encryptedPrivateKey.saltHex);
+    const iv = hexToBuf(encryptedPrivateKey.ivHex);
+    const ciphertext = hexToBuf(encryptedPrivateKey.ciphertextHex);
+
+    const aesKey = await deriveAesKey(passphrase, new Uint8Array(salt));
+
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: new Uint8Array(iv)
+      },
+      aesKey,
+      ciphertext
+    );
+
+    const privateKeyJwkStr = new TextDecoder().decode(decryptedBuffer);
+    const privateKeyJwk = JSON.parse(privateKeyJwkStr);
+
+    return await crypto.subtle.importKey(
+      "jwk",
+      privateKeyJwk,
+      {
+        name: "ECDSA",
+        namedCurve: "P-256"
+      },
+      true,
+      ["sign"]
+    );
+  } catch (e) {
+    console.error("Erro ao descriptografar chave privada:", e);
+    return null;
+  }
+}
+
+async function signWithPrivateKey(privateKey, dataString) {
+  const dataBytes = new TextEncoder().encode(dataString);
+  const signatureBuffer = await crypto.subtle.sign(
+    {
+      name: "ECDSA",
+      hash: { name: "SHA-256" }
+    },
+    privateKey,
+    dataBytes
+  );
+  return bufToHex(signatureBuffer);
+}
+
 async function getPublicKeyHash(publicKeyJwk) {
   const normalizedStr = `${publicKeyJwk.x}:${publicKeyJwk.y}`;
   return await computeSha256Hex(normalizedStr);
@@ -1813,6 +1967,390 @@ function showCaseList() {
   showSection("sectionCaseList");
   renderInstitutionConfig();
   renderCaseList();
+}
+
+/* ========================================
+   IMPORTAÇÃO DE CASO (JSON / DRAG & DROP)
+   ======================================== */
+
+let dragCounter = 0;
+
+window.addEventListener("dragenter", function(e) {
+  e.preventDefault();
+  // Só ativa a overlay se estiver na seção de lista de casos
+  const caseListSection = document.getElementById("sectionCaseList");
+  if (caseListSection && caseListSection.style.display !== "none") {
+    dragCounter++;
+    if (dragCounter === 1) {
+      document.getElementById("dragDropOverlay").classList.add("active");
+    }
+  }
+});
+
+window.addEventListener("dragover", function(e) {
+  e.preventDefault();
+});
+
+window.addEventListener("dragleave", function(e) {
+  e.preventDefault();
+  const caseListSection = document.getElementById("sectionCaseList");
+  if (caseListSection && caseListSection.style.display !== "none") {
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      document.getElementById("dragDropOverlay").classList.remove("active");
+    }
+  }
+});
+
+window.addEventListener("drop", function(e) {
+  e.preventDefault();
+  dragCounter = 0;
+  document.getElementById("dragDropOverlay").classList.remove("active");
+  
+  const caseListSection = document.getElementById("sectionCaseList");
+  if (caseListSection && caseListSection.style.display !== "none") {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleImportFile(files[0]);
+    }
+  }
+});
+
+function handleImportJson(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = ''; // limpa o input
+  handleImportFile(file);
+}
+
+function handleImportFile(file) {
+  if (file.type !== "application/json" && !file.name.endsWith(".json")) {
+    showToast("Apenas arquivos JSON são suportados.", "error");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      validateAndImportCase(data);
+    } catch (err) {
+      showToast("Erro ao processar o arquivo JSON. Arquivo corrompido ou inválido.", "error");
+    }
+  };
+  reader.onerror = function() {
+    showToast("Erro ao ler o arquivo.", "error");
+  };
+  reader.readAsText(file);
+}
+
+let pendingImportData = null; // Guardará temporariamente o objeto a ser importado em caso de conflito
+
+function validateAndImportCase(data) {
+  if (!data || !data.case || !data.case.id || !data.case.caseNumber || !data.case.title) {
+    showToast("Formato de caso inválido. O arquivo JSON deve ter sido gerado por esta ferramenta.", "error");
+    return;
+  }
+  
+  // Verifica se já existe um caso com o mesmo ID ou com o mesmo número
+  const existingCase = appState.cases.find(c => c.id === data.case.id || c.caseNumber === data.case.caseNumber);
+  if (existingCase) {
+    pendingImportData = data;
+    document.getElementById("conflictCaseNumber").textContent = data.case.caseNumber;
+    openModal("modalImportConflict");
+  } else {
+    executeCaseImport(data, "new");
+  }
+}
+
+async function resolveImportConflict(option) {
+  closeModal("modalImportConflict");
+  if (!pendingImportData) return;
+  
+  await executeCaseImport(pendingImportData, option);
+  pendingImportData = null;
+}
+
+async function executeCaseImport(data, option) {
+  showToast("Processando caso para importação...", "info");
+  try {
+    const importedCase = { ...data.case };
+    let importedEvents = Array.isArray(data.events) ? [...data.events] : [];
+    let importedAttachments = Array.isArray(data.attachments) ? [...data.attachments] : [];
+    
+    if (option === "copy") {
+      // Gera novos IDs e atualiza referências
+      const timestamp = Date.now().toString();
+      const randomSuffix = Math.floor(Math.random() * 1000).toString();
+      const newCaseId = "case-" + timestamp + "-" + randomSuffix;
+      const oldCaseId = importedCase.id;
+      
+      importedCase.id = newCaseId;
+      importedCase.caseNumber = importedCase.caseNumber + " (Cópia)";
+      importedCase.title = importedCase.title + " (Cópia)";
+      importedCase.openedAt = new Date().toISOString(); // Atualiza data de abertura para agora
+      
+      // Mapeia eventos
+      importedEvents = importedEvents.map((evt, idx) => {
+        const newEvtId = "evt-" + timestamp + "-" + randomSuffix + "-" + idx;
+        return {
+          ...evt,
+          id: newEvtId,
+          caseId: newCaseId,
+          createdAt: evt.createdAt // Mantém data original do evento
+        };
+      });
+      
+      // Mapeia anexos
+      importedAttachments = importedAttachments.map((att, idx) => {
+        const newAttId = "att-" + timestamp + "-" + randomSuffix + "-" + idx;
+        return {
+          ...att,
+          id: newAttId,
+          caseId: newCaseId
+        };
+      });
+    } else if (option === "overwrite") {
+      const targetId = importedCase.id;
+      // Remove caso existente com mesmo ID ou com mesmo número
+      appState.cases = appState.cases.filter(c => c.id !== targetId && c.caseNumber !== importedCase.caseNumber);
+      if (appState.eventsByCase[targetId]) delete appState.eventsByCase[targetId];
+      if (appState.attachmentsByCase[targetId]) delete appState.attachmentsByCase[targetId];
+      
+      // Também remove duplicados por número de caso com ID diferente
+      const matchNumber = appState.cases.find(c => c.caseNumber === importedCase.caseNumber);
+      if (matchNumber) {
+        const duplicateId = matchNumber.id;
+        appState.cases = appState.cases.filter(c => c.id !== duplicateId);
+        if (appState.eventsByCase[duplicateId]) delete appState.eventsByCase[duplicateId];
+        if (appState.attachmentsByCase[duplicateId]) delete appState.attachmentsByCase[duplicateId];
+      }
+    }
+    
+    // Inserir nos dados pendentes de importação para permitir o fluxo de re-assinatura
+    window._pendingImportCase = importedCase;
+    window._pendingImportEvents = importedEvents;
+    window._pendingImportAttachments = importedAttachments;
+    window._pendingReSignatures = collectPendingSignatures(importedCase, importedEvents);
+
+    if (window._pendingReSignatures.length > 0) {
+      renderReSignList();
+      openModal("modalImportReSign");
+    } else {
+      await finishImportWithReSign();
+    }
+  } catch (err) {
+    console.error(err);
+    showToast("Erro durante o processamento do caso.", "error");
+  }
+}
+
+function collectPendingSignatures(importedCase, importedEvents) {
+  const list = [];
+  for (const evt of importedEvents) {
+    if (evt.type === "ENTREGA" && evt.detail) {
+      try {
+        const dd = JSON.parse(evt.detail);
+        if (dd.signatureDelivered) {
+          list.push({
+            eventId: evt.id,
+            type: "ENTREGA",
+            role: "deliveredBy",
+            signerName: dd.deliveredBy,
+            signerRole: "Entregador",
+            originalSignature: dd.signatureDelivered,
+            eventObj: evt,
+            detailObj: dd
+          });
+        }
+        if (dd.signatureReceived) {
+          list.push({
+            eventId: evt.id,
+            type: "ENTREGA",
+            role: "receivedBy",
+            signerName: dd.receivedBy,
+            signerRole: "Recebedor",
+            originalSignature: dd.signatureReceived,
+            eventObj: evt,
+            detailObj: dd
+          });
+        }
+      } catch(_) {}
+    } else if (evt.type === "ASSINATURA_RELATORIO" && evt.detail) {
+      try {
+        const sd = JSON.parse(evt.detail);
+        if (sd.signature) {
+          list.push({
+            eventId: evt.id,
+            type: "ASSINATURA_RELATORIO",
+            role: "signatory",
+            signerName: sd.signatureName,
+            signerRole: sd.signatureRole,
+            originalSignature: sd.signature,
+            eventObj: evt,
+            detailObj: sd
+          });
+        }
+      } catch(_) {}
+    }
+  }
+  return list;
+}
+
+function renderReSignList() {
+  const container = document.getElementById("reSignListContainer");
+  let html = "";
+  
+  window._pendingReSignatures.forEach((item, index) => {
+    const isPhone = item.type === "ENTREGA";
+    const placeholder = isPhone ? "Telefone: (xx)xxxxxxxxx" : "Senha de assinatura";
+    const inputType = isPhone ? "text" : "password";
+    const onInputAttr = isPhone ? 'oninput="this.value = formatPhoneInput(this.value)" maxlength="13"' : '';
+    const statusText = item.success === true ? "Sucesso ✅" : item.success === false ? "Erro ❌" : "Pendente ⏳";
+    const badgeClass = item.success === true ? "badge-green" : item.success === false ? "badge-red" : "badge-amber";
+    
+    html += `
+      <div class="card" style="padding: 10px 12px; background: var(--bg-secondary); border: 1px solid var(--border-primary); display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+          <div>
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">${esc(item.eventObj.summary)}</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">${esc(item.signerRole)}: <strong>${esc(item.signerName)}</strong></div>
+          </div>
+          <span id="resign-status-${index}" class="card-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${statusText}</span>
+        </div>
+        ${item.success !== true ? `
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="${inputType}" id="resign-pass-${index}" class="form-input" placeholder="${placeholder}" ${onInputAttr} style="font-size: 0.8rem; padding: 6px 10px; height: 32px; flex: 1; font-family: var(--font-mono); margin-bottom: 0;">
+          <button class="btn btn-primary btn-sm" onclick="handleReSignItem(${index})" style="height: 32px; padding: 0 12px; font-size: 0.8rem; border-radius: var(--radius-sm);">✍️ Assinar</button>
+        </div>` : ''}
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+async function handleReSignItem(index) {
+  const item = window._pendingReSignatures[index];
+  const passEl = document.getElementById(`resign-pass-${index}`);
+  const pass = passEl.value.trim();
+  
+  if (!pass) {
+    showToast("Informe a senha/telefone.", "error");
+    return;
+  }
+  
+  showToast("Verificando credenciais...", "info");
+  
+  // 1. Tentar descriptografar a chave privada
+  const privateKey = await decryptPrivateKey(item.originalSignature.encryptedPrivateKey, pass);
+  if (!privateKey) {
+    item.success = false;
+    renderReSignList();
+    showToast("Telefone ou senha incorreta.", "error");
+    return;
+  }
+  
+  // 2. Montar o novo payload com base no novo caseId e recalcular a assinatura
+  let dataToSign = "";
+  if (item.type === "ENTREGA") {
+    dataToSign = JSON.stringify({
+      caseId: window._pendingImportCase.id,
+      type: "ENTREGA",
+      object: item.detailObj.object,
+      contentInfo: item.detailObj.contentInfo,
+      fileHashes: item.detailObj.fileHashes,
+      deliveredBy: item.detailObj.deliveredBy,
+      receivedBy: item.detailObj.receivedBy,
+      role: item.role
+    });
+  } else if (item.type === "ASSINATURA_RELATORIO") {
+    dataToSign = JSON.stringify({
+      caseId: window._pendingImportCase.id,
+      type: "ASSINATURA_RELATORIO",
+      signatureName: item.detailObj.signatureName,
+      signatureRole: item.detailObj.signatureRole
+    });
+  }
+  
+  try {
+    const newSignatureHex = await signWithPrivateKey(privateKey, dataToSign);
+    
+    // 3. Atualizar a assinatura no objeto de detalhes
+    if (item.type === "ENTREGA") {
+      if (item.role === "deliveredBy") {
+        item.detailObj.signatureDelivered.signatureHex = newSignatureHex;
+      } else if (item.role === "receivedBy") {
+        item.detailObj.signatureReceived.signatureHex = newSignatureHex;
+      }
+    } else if (item.type === "ASSINATURA_RELATORIO") {
+      item.detailObj.signature.signatureHex = newSignatureHex;
+    }
+    
+    // Atualiza o detail stringificado no evento
+    item.eventObj.detail = JSON.stringify(item.detailObj);
+    
+    item.success = true;
+    renderReSignList();
+    showToast("Assinatura gerada com sucesso!", "success");
+  } catch(e) {
+    console.error(e);
+    showToast("Erro ao gerar a assinatura.", "error");
+  }
+}
+
+async function finishImportWithReSign() {
+  closeModal("modalImportReSign");
+  
+  const importedCase = window._pendingImportCase;
+  const importedEvents = window._pendingImportEvents;
+  const importedAttachments = window._pendingImportAttachments;
+  
+  if (!importedCase) return;
+  
+  showToast("Finalizando importação...", "info");
+  
+  try {
+    // Recalcular toda a cadeia de hashes para o caso importado
+    // Isso garante que todos os events.caseId, events.detail (re-assinados ou não)
+    // sejam integrados em uma cadeia de hashes válida e íntegra.
+    let prevHash = "ROOT";
+    for (let idx = 0; idx < importedEvents.length; idx++) {
+      const evt = importedEvents[idx];
+      evt.previousHash = prevHash;
+      
+      const payload = JSON.stringify({
+        caseId: importedCase.id,
+        type: evt.type,
+        summary: evt.summary,
+        detail: evt.detail,
+        createdAt: evt.createdAt,
+        previousHash: prevHash
+      });
+      evt.hash = await computeSha256Hex(payload);
+      prevHash = evt.hash;
+    }
+    
+    // Inserir na State
+    if (!appState.cases.find(c => c.id === importedCase.id)) {
+      appState.cases.push(importedCase);
+    }
+    appState.eventsByCase[importedCase.id] = importedEvents;
+    appState.attachmentsByCase[importedCase.id] = importedAttachments;
+    
+    await saveStateToDb();
+    renderCaseList();
+    showToast("Caso importado com sucesso!", "success");
+  } catch(e) {
+    console.error(e);
+    showToast("Erro ao finalizar a importação do caso.", "error");
+  } finally {
+    // Limpa os estados pendentes
+    window._pendingImportCase = null;
+    window._pendingImportEvents = null;
+    window._pendingImportAttachments = null;
+    window._pendingReSignatures = null;
+  }
 }
 
 /* ========================================
