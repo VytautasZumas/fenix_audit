@@ -3841,3 +3841,361 @@ async function generatePdf(caseObj, events, attachments) {
             role: "receivedBy"
           });
           const verified = await verifyDigitalSignature(dataReceived, dd.signatureReceived.signatureHex, dd.signatureReceived.publicKeyJwk);
+          if (verified) {
+            yCol2 = drawText("[ASSINADO DIGITALMENTE]", col2X, yCol2, 9, "bold", [0.1, 0.5, 0.2], colW);
+            yCol2 = drawText(`Chave ID: ${dd.signatureReceived.keyHash.substring(0, 16)}...`, col2X, yCol2, 7.5, "mono", [0.3, 0.3, 0.3], colW);
+            yCol2 = drawText(`Assinatura: ${dd.signatureReceived.signatureHex.substring(0, 16)}...`, col2X, yCol2, 7.5, "mono", [0.3, 0.3, 0.3], colW);
+          } else {
+            yCol2 = drawText("[ASSINATURA INVÁLIDA]", col2X, yCol2, 9, "bold", [0.8, 0.1, 0.1], colW);
+          }
+        } else {
+          yCol2 = drawText("___________________________________", col2X, yCol2, 9, false, [0.4, 0.4, 0.4], colW);
+        }
+
+        curY = Math.min(yCol1, yCol2) - 10;
+        const nextY1 = drawText(`Entregue por: ${deliveredBy}`, col1X, curY, 8.5, "bold", [0.15, 0.15, 0.2], colW);
+        const nextY2 = drawText(`Recebido por: ${receivedBy}`, col2X, curY, 8.5, "bold", [0.15, 0.15, 0.2], colW);
+
+        curY = Math.min(nextY1, nextY2) - 15;
+      } catch (_) {}
+    }
+  }
+
+  addSpacer(12);
+  addLine();
+  addSpacer(6);
+
+  addText("Relatório gerado em: " + new Date().toLocaleString("pt-BR"), 8, false, [0.45, 0.5, 0.6]);
+  addText("Fênix Audit Lite v1.0 -- Protótipo forense local", 8, false, [0.45, 0.5, 0.6]);
+  addText("Algoritmo de integridade: SHA-256", 8, false, [0.45, 0.5, 0.6]);
+  if (institutionConfig.name) {
+    addText("Instituição: " + institutionConfig.name, 8, false, [0.45, 0.5, 0.6]);
+  }
+  addText("Este procedimento foi estruturado com base nos princípios da ABNT NBR ISO/IEC 27037", 8, false, [0.45, 0.5, 0.6]);
+
+  // Push last page
+  pages.push({ commands: currentPage, images: currentPageImages });
+
+  // ——— Assemble the PDF as binary ———
+
+  const catalogId = addObj("");
+  const pagesId = addObj("");
+  const font1Id = addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const font2Id = addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  const font3Id = addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>");
+
+  const pageObjIds = [];
+  const streamObjIds = [];
+
+  for (const pageData of pages) {
+    const streamContent = pageData.commands.join("\n");
+    const streamBytes = new TextEncoder().encode(streamContent);
+    const streamId = addObj(`<< /Length ${streamBytes.length} >>\nstream\n${streamContent}\nendstream`);
+    streamObjIds.push(streamId);
+    const pageId = addObj("");
+    pageObjIds.push(pageId);
+  }
+
+  objects.find(o => o.id === catalogId).content = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
+  objects.find(o => o.id === pagesId).content = `<< /Type /Pages /Kids [${pageObjIds.map(id => `${id} 0 R`).join(" ")}] /Count ${pageObjIds.length} >>`;
+
+  // Build page objects with image XObject references in Resources
+  for (let i = 0; i < pageObjIds.length; i++) {
+    const pageData = pages[i];
+    let xobjEntries = [];
+    if (pageData.images.length > 0) {
+      xobjEntries = pageData.images.map(im => `/${im.imgName} ${im.imgObjId} 0 R`);
+    }
+    if (logoImgObj) {
+      xobjEntries.push(`/InstitutionLogo ${logoImgObj.objId} 0 R`);
+    }
+    let xobjDict = '';
+    if (xobjEntries.length > 0) {
+      xobjDict = ` /XObject << ${xobjEntries.join(' ')} >>`;
+    }
+    objects.find(o => o.id === pageObjIds[i]).content = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${streamObjIds[i]} 0 R /Resources << /Font << /F1 ${font1Id} 0 R /F2 ${font2Id} 0 R /F3 ${font3Id} 0 R >>${xobjDict} >> >>`;
+  }
+
+  // Build final binary PDF
+  const encoder = new TextEncoder();
+  const chunks = [];
+  let totalLen = 0;
+
+  function writeStr(s) {
+    const b = encoder.encode(s);
+    chunks.push(b);
+    totalLen += b.length;
+  }
+
+  function writeBytes(b) {
+    chunks.push(b);
+    totalLen += b.length;
+  }
+
+  writeStr("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  const offsets = [];
+
+  for (const obj of objects) {
+    offsets.push(totalLen);
+    if (obj.binaryStream) {
+      // Binary object (image)
+      writeStr(`${obj.id} 0 obj\n${obj.binaryStream.header}\nstream\n`);
+      writeBytes(obj.binaryStream.data);
+      writeStr(`\nendstream\nendobj\n`);
+    } else {
+      writeStr(`${obj.id} 0 obj\n${obj.content}\nendobj\n`);
+    }
+  }
+
+  const xrefOffset = totalLen;
+  writeStr("xref\n");
+  writeStr(`0 ${objects.length + 1}\n`);
+  writeStr("0000000000 65535 f \n");
+  for (const offset of offsets) {
+    writeStr(offset.toString().padStart(10, "0") + " 00000 n \n");
+  }
+
+  writeStr("trailer\n");
+  writeStr(`<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\n`);
+  writeStr("startxref\n");
+  writeStr(xrefOffset + "\n");
+  writeStr("%%EOF\n");
+
+  // Concatenate all chunks into a single Uint8Array
+  const result = new Uint8Array(totalLen);
+  let pos = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, pos);
+    pos += chunk.length;
+  }
+
+  return result;
+}
+
+/* ========================================
+   MODALS
+   ======================================== */
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add("active");
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove("active");
+}
+
+// Close modals on overlay click
+document.addEventListener("click", function(e) {
+  if (e.target.classList.contains("modal-overlay")) {
+    e.target.classList.remove("active");
+  }
+});
+
+// Close modals on Escape
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-overlay.active").forEach(m => m.classList.remove("active"));
+    closeImagePreview();
+  }
+});
+
+/* ========================================
+   TOAST
+   ======================================== */
+
+function showToast(message, type) {
+  type = type || "info";
+  const container = document.getElementById("toastContainer");
+  const toast = document.createElement("div");
+  toast.className = "toast toast-" + type;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 3000);
+}
+
+/* ========================================
+   UTILITÁRIOS
+   ======================================== */
+
+function esc(str) {
+  if (!str) return "";
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatDate(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch (_) {
+    return isoStr;
+  }
+}
+
+function formatDateTime(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) + " " +
+           d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch (_) {
+    return isoStr;
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+function formatPhoneInput(value) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 0) return "";
+  if (digits.length <= 2) {
+    return "(" + digits;
+  }
+  return "(" + digits.slice(0, 2) + ")" + digits.slice(2, 11);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Hash copiado!", "info");
+    });
+  } else {
+    // Fallback
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast("Hash copiado!", "info");
+  }
+}
+
+/* ========================================
+   INICIALIZAÇÃO
+   ======================================== */
+
+/* ========================================
+   INSTITUTION CONFIG
+   ======================================== */
+
+function updateAppHeaders() {
+  const logoList = document.getElementById("headerLogoList");
+  const logoDetail = document.getElementById("headerLogoDetail");
+  const subtitleList = document.getElementById("headerSubtitleList");
+  const subtitleDetail = document.getElementById("headerSubtitleDetail");
+
+  if (institutionConfig.logoDataUrl) {
+    const imgHtml = `<img src="${institutionConfig.logoDataUrl}" style="width:100%;height:100%;object-fit:contain;">`;
+    if (logoList) logoList.innerHTML = imgHtml;
+    if (logoDetail) logoDetail.innerHTML = imgHtml;
+  } else {
+    if (logoList) logoList.innerHTML = "🔥";
+    if (logoDetail) logoDetail.innerHTML = "🔥";
+  }
+
+  if (institutionConfig.name) {
+    if (subtitleList) subtitleList.textContent = institutionConfig.name;
+    if (subtitleDetail) subtitleDetail.textContent = institutionConfig.name;
+  } else {
+    if (subtitleList) subtitleList.textContent = "Registro forense local";
+    if (subtitleDetail) subtitleDetail.textContent = "Registro forense local";
+  }
+}
+
+function loadInstitutionConfig() {
+  try {
+    const raw = localStorage.getItem(INSTITUTION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      institutionConfig = {
+        name: parsed.name || "",
+        logoDataUrl: parsed.logoDataUrl || null
+      };
+    }
+    updateAppHeaders();
+  } catch (e) {
+    console.error("Erro ao carregar config da instituicao:", e);
+  }
+}
+
+function saveInstitutionConfig() {
+  institutionConfig.name = document.getElementById("institutionName").value.trim();
+  try {
+    localStorage.setItem(INSTITUTION_KEY, JSON.stringify(institutionConfig));
+    updateAppHeaders();
+    showToast("Configuracao da instituicao salva!", "success");
+  } catch (e) {
+    console.error("Erro ao salvar config:", e);
+    showToast("Erro ao salvar configuracao.", "error");
+  }
+}
+
+function handleLogoUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = "";
+
+  if (!file.type.match(/^image\/(png|jpeg|svg\+xml)$/)) {
+    showToast("Formato invalido. Use PNG, JPG ou SVG.", "error");
+    return;
+  }
+
+  if (file.size > 500 * 1024) {
+    showToast("Arquivo muito grande (max. 500 KB).", "error");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    institutionConfig.logoDataUrl = e.target.result;
+    renderLogoPreview();
+    saveInstitutionConfig();
+    showToast("Brasao carregado!", "success");
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeLogo() {
+  institutionConfig.logoDataUrl = null;
+  renderLogoPreview();
+  saveInstitutionConfig();
+  showToast("Logo removido.", "info");
+}
+
+function renderLogoPreview() {
+  const preview = document.getElementById("logoPreview");
+  const actions = document.getElementById("logoActions");
+  if (institutionConfig.logoDataUrl) {
+    preview.innerHTML = `<img src="${institutionConfig.logoDataUrl}" alt="Brasao">`;
+    actions.style.display = "flex";
+  } else {
+    preview.innerHTML = "\ud83c\udfdb";
+    actions.style.display = "none";
+  }
+}
+
+function renderInstitutionConfig() {
+  document.getElementById("institutionName").value = institutionConfig.name || "";
+  renderLogoPreview();
+}
+
+window.onload = async function() {
+  appState = await loadStateFromDb();
+  loadInstitutionConfig();
+  renderUnlockScreen();
+};
+
+</script>
+</body>
+</html>
