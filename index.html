@@ -3605,6 +3605,25 @@ async function handleCapturedImage(inputId, dataUrl) {
   }
 }
 
+function adjustImageButtonsForDevice() {
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    const cameraButtons = document.querySelectorAll("button[onclick*='openWebcamCapture']");
+    cameraButtons.forEach(btn => {
+      btn.style.display = "none";
+    });
+
+    const fileButtons = document.querySelectorAll(".image-buttons-group button:not([onclick*='openWebcamCapture'])");
+    fileButtons.forEach(btn => {
+      if (btn.classList.contains("btn-primary")) {
+        btn.textContent = "＋ Adicionar imagem";
+      } else {
+        btn.textContent = "📷 Selecionar imagem";
+      }
+    });
+  }
+}
+
 function renderAttachments(caseId) {
   const container = document.getElementById("attachmentsContainer");
   const attachments = getAttachmentsForCase(caseId);
@@ -3619,6 +3638,7 @@ function renderAttachments(caseId) {
           <button class="btn btn-primary btn-sm" onclick="openWebcamCapture('fileInputHidden')">📷 Usar câmera</button>
         </div>
       </div>`;
+    adjustImageButtonsForDevice();
     return;
   }
 
@@ -5088,6 +5108,7 @@ window.onload = async function() {
   appState = await loadStateFromDb();
   loadInstitutionConfig();
   renderUnlockScreen();
+  adjustImageButtonsForDevice();
 };
 
 </script>
