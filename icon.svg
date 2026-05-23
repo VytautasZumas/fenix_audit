@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0c10" />
+      <stop offset="100%" stop-color="#161a24" />
+    </linearGradient>
+    
+    <!-- Phoenix Glow Gradient -->
+    <linearGradient id="phoenixGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="50%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#facc15" />
+    </linearGradient>
+    
+    <!-- Outer Ring Gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#facc15" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#f97316" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.8" />
+    </linearGradient>
+    
+    <!-- Drop Shadow for the Phoenix -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Icon Base (Squircle/App icon background) -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" stroke="#2a3040" stroke-width="6" />
+  
+  <!-- Decorative Outer Glowing Ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#ringGrad)" stroke-width="4" stroke-dasharray="10 30" opacity="0.4" />
+  
+  <!-- Stylized Abstract Phoenix / Flame Graphic -->
+  <g filter="url(#glow)">
+    <!-- Wings left -->
+    <path d="M 230 380 C 130 370 90 280 120 200 C 130 180 150 160 170 170 C 160 190 165 220 185 240 C 150 190 180 130 220 100 C 205 130 210 170 235 190 C 215 130 240 80 256 50" fill="none" stroke="url(#phoenixGrad)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+    
+    <!-- Wings right -->
+    <path d="M 282 380 C 382 370 422 280 392 200 C 382 180 362 160 342 170 C 352 190 347 220 327 240 C 362 190 332 130 292 100 C 307 130 302 170 277 190 C 297 130 272 80 256 50" fill="none" stroke="url(#phoenixGrad)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+    
+    <!-- Center Tail/Body Flames -->
+    <path d="M 256 220 L 256 420" fill="none" stroke="url(#phoenixGrad)" stroke-width="20" stroke-linecap="round" />
+    <path d="M 226 280 Q 256 340 220 440" fill="none" stroke="url(#phoenixGrad)" stroke-width="14" stroke-linecap="round" />
+    <path d="M 286 280 Q 256 340 292 440" fill="none" stroke="url(#phoenixGrad)" stroke-width="14" stroke-linecap="round" />
+    
+    <!-- Head / Top Flame Crest -->
+    <path d="M 256 160 A 25 25 0 1 1 256 110 A 25 25 0 1 1 256 160" fill="url(#phoenixGrad)" opacity="0.9" />
+  </g>
+</svg>
