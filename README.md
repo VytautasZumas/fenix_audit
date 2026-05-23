@@ -1,6 +1,8 @@
 # Fenix Log
 Relatório de Integridade e Custódia de Evidências
 
+O Fênix Log é um aplicativo forense local e de código aberto desenvolvido para registrar de forma imutável a cadeia de custódia e a integridade de evidências digitais (como sementes de recuperação de criptoativos, transações de apreensão e entrega de dispositivos). Operando sob a filosofia zero-telemetry (zero telemetria), o sistema roda 100% no navegador do usuário, sem enviar quaisquer dados para servidores externos ou bancos de dados em nuvem, assegurando confidencialidade absoluta. Com recursos avançados de criptografia local de chave pública/privada (ECDSA P-256 e AES-GCM baseados no telefone e senha do operador), a ferramenta permite que signatários assinem digitalmente os eventos em tempo real, gerando um relatório em PDF auditável e padronizado que calcula e exibe os hashes SHA-256 individuais de cada registro, imagem e arquivo anexado, garantindo a rastreabilidade e a não-violação do processo investigativo.
+
 🍏 Como Instalar no iOS (iPhone e iPad)
 WARNING
 
