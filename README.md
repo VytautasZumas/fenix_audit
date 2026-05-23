@@ -7,7 +7,7 @@ WARNING
 Nota do iOS: O sistema da Apple permite a instalação de PWAs apenas através do navegador nativo Safari. Navegadores de terceiros (como Chrome ou Firefox no iOS) não têm permissão do sistema para adicionar apps à tela inicial.
 
 Abra o Safari no seu iPhone ou iPad.
-Acesse a URL onde o seu Fênix Log está publicado (ex: https://seu-usuario.github.io/fenix-log/).
+Acesse a URL onde o seu Fênix Log está publicado (ex: https://fenix-log.vercel.app/).
 Toque no botão Compartilhar na barra inferior (o ícone de um quadrado com uma seta apontando para cima).
 Role a lista de opções para baixo e selecione "Adicionar à Tela de Início" (Add to Home Screen).
 O sistema carregará o ícone da Fênix (icon.svg) e o nome do app automaticamente. Toque em "Adicionar" no canto superior direito.
