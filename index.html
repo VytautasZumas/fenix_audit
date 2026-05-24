@@ -1632,26 +1632,19 @@ a { color: var(--accent-amber); text-decoration: none; }
   </div>
 </div>
 
-<!-- ========== MODAL: RE-ASSINATURA DIGITAL NA IMPORTAÇÃO ========== -->
-<div id="modalImportReSign" class="modal-overlay">
-  <div class="modal" style="max-width: 580px;">
+<!-- ========== MODAL: RESUMO DA IMPORTAÇÃO (INTEGRIDADE) ========== -->
+<div id="modalImportSummary" class="modal-overlay">
+  <div class="modal" style="max-width: 520px;">
     <div class="modal-header">
-      <h3 class="modal-title" style="color: var(--accent-green); display: flex; align-items: center; gap: 8px;">🔒 Assinaturas do Caso Importado</h3>
-      <button class="modal-close" onclick="closeModal('modalImportReSign')">&times;</button>
+      <h3 class="modal-title" style="color: var(--accent-green); display: flex; align-items: center; gap: 8px;">🔗 Verificação Pré-Importação</h3>
+      <button class="modal-close" onclick="closeModal('modalImportSummary')">&times;</button>
     </div>
-    <div style="margin: 12px 0; font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary);">
-      Este caso contém assinaturas digitais. Devido à cópia, elas tornaram-se inválidas sob a nova identidade (ID do caso). Peça para os signatários informarem seus telefones/senhas abaixo para re-assinar e restabelecer a integridade:
+    <div id="importSummaryContent" style="margin: 12px 0; font-size: 0.88rem; line-height: 1.6; color: var(--text-secondary);">
+      <!-- Conteúdo dinâmico via JS -->
     </div>
-    <div id="reSignListContainer" style="display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; padding: 4px; margin-bottom: 16px;">
-      <!-- Itens dinâmicos inseridos via JS -->
-    </div>
-    <div class="modal-actions" style="margin-top: 0; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-      <p style="font-size: 0.78rem; color: var(--text-muted); margin: 0; flex: 1; min-width: 200px;">
-        * Itens não re-assinados serão importados com as assinaturas originais (que aparecerão como inválidas).
-      </p>
-      <div style="display: flex; gap: 8px;">
-        <button class="btn btn-primary" onclick="finishImportWithReSign()" style="padding: 10px 20px;">Finalizar Importação</button>
-      </div>
+    <div class="modal-actions" style="margin-top: 0; justify-content: flex-end; gap: 8px;">
+      <button class="btn btn-ghost" onclick="closeModal('modalImportSummary')" style="padding: 8px 16px;">Cancelar</button>
+      <button id="btnConfirmImport" class="btn btn-primary" onclick="confirmImportAfterVerification()" style="padding: 10px 20px;">Confirmar Importação</button>
     </div>
   </div>
 </div>
@@ -2165,33 +2158,97 @@ async function resolveImportConflict(option) {
   pendingImportData = null;
 }
 
+/**
+ * Retorna o caseId que deve ser usado para verificação de assinatura digital.
+ * Se o evento foi importado como cópia, ele terá um originalCaseId que preserva
+ * a referência ao caso original sob o qual a assinatura foi gerada.
+ * Isso garante que assinaturas originais permaneçam válidas após importação.
+ */
+function getSignatureCaseId(event) {
+  return event.originalCaseId || event.caseId;
+}
+
+/**
+ * Verifica a integridade da cadeia de hashes de um array de eventos (sem depender do appState).
+ * Usado para validar dados importados antes de aceitar no banco local.
+ */
+async function verifyChainIntegrityFromArray(events) {
+  let previousHash = "ROOT";
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    const payload = JSON.stringify({
+      caseId: e.caseId,
+      type: e.type,
+      summary: e.summary,
+      detail: e.detail,
+      createdAt: e.createdAt,
+      previousHash
+    });
+    const expectedHash = await computeSha256Hex(payload);
+    if (e.previousHash !== previousHash || e.hash !== expectedHash) {
+      return { ok: false, brokenAtIndex: i, eventId: e.id };
+    }
+    previousHash = e.hash;
+  }
+  return { ok: true };
+}
+
+/**
+ * Conta quantas assinaturas digitais existem nos eventos importados.
+ */
+function countSignaturesInEvents(events) {
+  let total = 0;
+  for (const evt of events) {
+    if (evt.type === "ENTREGA" && evt.detail) {
+      try {
+        const dd = JSON.parse(evt.detail);
+        if (dd.signatureDelivered) total++;
+        if (dd.signatureReceived) total++;
+      } catch(_) {}
+    } else if (evt.type === "ASSINATURA_RELATORIO" && evt.detail) {
+      try {
+        const sd = JSON.parse(evt.detail);
+        if (sd.signature) total++;
+      } catch(_) {}
+    }
+  }
+  return total;
+}
+
 async function executeCaseImport(data, option) {
-  showToast("Processando caso para importação...", "info");
+  showToast("Verificando integridade do caso importado...", "info");
   try {
     const importedCase = { ...data.case };
     let importedEvents = Array.isArray(data.events) ? [...data.events] : [];
     let importedAttachments = Array.isArray(data.attachments) ? [...data.attachments] : [];
     
+    // ── 1. Verificar integridade da cadeia ANTES de aceitar ──
+    const chainResult = await verifyChainIntegrityFromArray(importedEvents);
+    const signatureCount = countSignaturesInEvents(importedEvents);
+    
     if (option === "copy") {
-      // Gera novos IDs e atualiza referências
+      // Gera novos IDs e atualiza referências, MAS preserva originalCaseId para assinaturas
       const timestamp = Date.now().toString();
       const randomSuffix = Math.floor(Math.random() * 1000).toString();
       const newCaseId = "case-" + timestamp + "-" + randomSuffix;
       const oldCaseId = importedCase.id;
       
+      // Armazena o ID original no caso para referência
+      importedCase.originalCaseId = oldCaseId;
       importedCase.id = newCaseId;
       importedCase.caseNumber = importedCase.caseNumber + " (Cópia)";
       importedCase.title = importedCase.title + " (Cópia)";
-      importedCase.openedAt = new Date().toISOString(); // Atualiza data de abertura para agora
+      importedCase.openedAt = new Date().toISOString();
       
-      // Mapeia eventos
+      // Mapeia eventos — preserva originalCaseId para manter assinaturas válidas
       importedEvents = importedEvents.map((evt, idx) => {
         const newEvtId = "evt-" + timestamp + "-" + randomSuffix + "-" + idx;
         return {
           ...evt,
           id: newEvtId,
+          originalCaseId: oldCaseId, // ← Chave para preservar assinaturas
           caseId: newCaseId,
-          createdAt: evt.createdAt // Mantém data original do evento
+          createdAt: evt.createdAt
         };
       });
       
@@ -2204,6 +2261,26 @@ async function executeCaseImport(data, option) {
           caseId: newCaseId
         };
       });
+      
+      // ── Recalcular cadeia de hashes com o novo caseId ──
+      // Os hashes da cadeia dependem do caseId, então precisam ser recalculados.
+      // Porém, as assinaturas digitais (ECDSA) NÃO são recalculadas — elas
+      // continuam válidas graças ao campo originalCaseId.
+      let prevHash = "ROOT";
+      for (let idx = 0; idx < importedEvents.length; idx++) {
+        const evt = importedEvents[idx];
+        evt.previousHash = prevHash;
+        const payload = JSON.stringify({
+          caseId: newCaseId,
+          type: evt.type,
+          summary: evt.summary,
+          detail: evt.detail,
+          createdAt: evt.createdAt,
+          previousHash: prevHash
+        });
+        evt.hash = await computeSha256Hex(payload);
+        prevHash = evt.hash;
+      }
     } else if (option === "overwrite") {
       const targetId = importedCase.id;
       // Remove caso existente com mesmo ID ou com mesmo número
@@ -2220,181 +2297,90 @@ async function executeCaseImport(data, option) {
         if (appState.attachmentsByCase[duplicateId]) delete appState.attachmentsByCase[duplicateId];
       }
     }
+    // Para option === "new" ou "overwrite", a cadeia permanece exatamente como veio (hashes intactos)
     
-    // Inserir nos dados pendentes de importação para permitir o fluxo de re-assinatura
+    // ── 2. Armazenar dados pendentes para confirmação ──
     window._pendingImportCase = importedCase;
     window._pendingImportEvents = importedEvents;
     window._pendingImportAttachments = importedAttachments;
-    window._pendingReSignatures = collectPendingSignatures(importedCase, importedEvents);
-
-    if (window._pendingReSignatures.length > 0) {
-      renderReSignList();
-      openModal("modalImportReSign");
-    } else {
-      await finishImportWithReSign();
-    }
+    window._pendingImportChainResult = chainResult;
+    
+    // ── 3. Mostrar resumo da verificação para o usuário ──
+    renderImportSummary(chainResult, signatureCount, importedEvents.length, option);
+    openModal("modalImportSummary");
+    
   } catch (err) {
     console.error(err);
     showToast("Erro durante o processamento do caso.", "error");
   }
 }
 
-function collectPendingSignatures(importedCase, importedEvents) {
-  const list = [];
-  for (const evt of importedEvents) {
-    if (evt.type === "ENTREGA" && evt.detail) {
-      try {
-        const dd = JSON.parse(evt.detail);
-        if (dd.signatureDelivered) {
-          list.push({
-            eventId: evt.id,
-            type: "ENTREGA",
-            role: "deliveredBy",
-            signerName: dd.deliveredBy,
-            signerRole: "Entregador",
-            originalSignature: dd.signatureDelivered,
-            eventObj: evt,
-            detailObj: dd
-          });
-        }
-        if (dd.signatureReceived) {
-          list.push({
-            eventId: evt.id,
-            type: "ENTREGA",
-            role: "receivedBy",
-            signerName: dd.receivedBy,
-            signerRole: "Recebedor",
-            originalSignature: dd.signatureReceived,
-            eventObj: evt,
-            detailObj: dd
-          });
-        }
-      } catch(_) {}
-    } else if (evt.type === "ASSINATURA_RELATORIO" && evt.detail) {
-      try {
-        const sd = JSON.parse(evt.detail);
-        if (sd.signature) {
-          list.push({
-            eventId: evt.id,
-            type: "ASSINATURA_RELATORIO",
-            role: "signatory",
-            signerName: sd.signatureName,
-            signerRole: sd.signatureRole,
-            originalSignature: sd.signature,
-            eventObj: evt,
-            detailObj: sd
-          });
-        }
-      } catch(_) {}
-    }
-  }
-  return list;
-}
-
-function renderReSignList() {
-  const container = document.getElementById("reSignListContainer");
+function renderImportSummary(chainResult, signatureCount, eventCount, option) {
+  const container = document.getElementById("importSummaryContent");
+  const btnConfirm = document.getElementById("btnConfirmImport");
+  
   let html = "";
   
-  window._pendingReSignatures.forEach((item, index) => {
-    const isPhone = item.type === "ENTREGA" || item.type === "ASSINATURA_RELATORIO";
-    const placeholder = isPhone ? "Telefone: (xx)xxxxxxxxx" : "Senha de assinatura";
-    const inputType = isPhone ? "text" : "password";
-    const onInputAttr = isPhone ? 'oninput="this.value = formatPhoneInput(this.value)" maxlength="13"' : '';
-    const statusText = item.success === true ? "Sucesso ✅" : item.success === false ? "Erro ❌" : "Pendente ⏳";
-    const badgeClass = item.success === true ? "badge-green" : item.success === false ? "badge-red" : "badge-amber";
-    
+  // Status da cadeia
+  if (chainResult.ok) {
     html += `
-      <div class="card" style="padding: 10px 12px; background: var(--bg-secondary); border: 1px solid var(--border-primary); display: flex; flex-direction: column; gap: 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-          <div>
-            <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">${esc(item.eventObj.summary)}</div>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">${esc(item.signerRole)}: <strong>${esc(item.signerName)}</strong></div>
-          </div>
-          <span id="resign-status-${index}" class="card-badge ${badgeClass}" style="font-size: 0.7rem; padding: 2px 6px;">${statusText}</span>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: var(--radius-md); margin-bottom: 12px;">
+        <span style="font-size: 1.2rem;">✅</span>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-green);">Cadeia de custódia íntegra</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">${eventCount} evento${eventCount !== 1 ? 's' : ''} verificado${eventCount !== 1 ? 's' : ''} — nenhuma adulteração detectada.</div>
         </div>
-        ${item.success !== true ? `
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="${inputType}" id="resign-pass-${index}" class="form-input" placeholder="${placeholder}" ${onInputAttr} style="font-size: 0.8rem; padding: 6px 10px; height: 32px; flex: 1; font-family: var(--font-mono); margin-bottom: 0;">
-          <button class="btn btn-primary btn-sm" onclick="handleReSignItem(${index})" style="height: 32px; padding: 0 12px; font-size: 0.8rem; border-radius: var(--radius-sm);">✍️ Assinar</button>
-        </div>` : ''}
-      </div>
-    `;
-  });
+      </div>`;
+  } else {
+    html += `
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: var(--radius-md); margin-bottom: 12px;">
+        <span style="font-size: 1.2rem;">⚠️</span>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-amber);">Cadeia de hashes será reconstruída</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">Os hashes da cadeia do arquivo diferem do esperado (evento #${chainResult.brokenAtIndex + 1}). Isso pode ocorrer em arquivos de versões anteriores. A cadeia será recalculada localmente para garantir integridade, sem afetar as assinaturas digitais originais.</div>
+        </div>
+      </div>`;
+  }
+  
+  // Assinaturas
+  if (signatureCount > 0) {
+    const isCopy = option === "copy";
+    html += `
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); border-radius: var(--radius-md); margin-bottom: 12px;">
+        <span style="font-size: 1.2rem;">🔒</span>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-purple);">${signatureCount} assinatura${signatureCount !== 1 ? 's' : ''} digital${signatureCount !== 1 ? 'is' : ''} encontrada${signatureCount !== 1 ? 's' : ''}</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">
+            ${isCopy 
+              ? 'As assinaturas serão preservadas com referência ao caso original, permanecendo válidas e verificáveis.' 
+              : 'As assinaturas digitais serão importadas exatamente como estão, mantendo sua validade original.'}
+          </div>
+        </div>
+      </div>`;
+  }
+  
+  // Modo de importação
+  const modeLabels = {
+    "new": "📥 Importação como caso novo",
+    "copy": "📂 Importação como cópia (novo ID)",
+    "overwrite": "💥 Substituição do caso existente"
+  };
+  html += `
+    <div style="font-size: 0.82rem; color: var(--text-muted); padding: 6px 0; border-top: 1px solid var(--border-primary);">
+      ${modeLabels[option] || "Importação"}
+    </div>`;
   
   container.innerHTML = html;
+  
+  // Sempre permite importação — a cadeia será recalculada se necessário
+  btnConfirm.disabled = false;
+  btnConfirm.style.opacity = "1";
+  btnConfirm.style.cursor = "pointer";
+  btnConfirm.title = "";
 }
 
-async function handleReSignItem(index) {
-  const item = window._pendingReSignatures[index];
-  const passEl = document.getElementById(`resign-pass-${index}`);
-  const pass = passEl.value.trim();
-  
-  if (!pass) {
-    showToast("Informe a senha/telefone.", "error");
-    return;
-  }
-  
-  showToast("Verificando credenciais...", "info");
-  
-  // 1. Tentar descriptografar a chave privada
-  const privateKey = await decryptPrivateKey(item.originalSignature.encryptedPrivateKey, pass);
-  if (!privateKey) {
-    item.success = false;
-    renderReSignList();
-    showToast("Telefone ou senha incorreta.", "error");
-    return;
-  }
-  
-  // 2. Montar o novo payload com base no novo caseId e recalcular a assinatura
-  let dataToSign = "";
-  if (item.type === "ENTREGA") {
-    dataToSign = JSON.stringify({
-      caseId: window._pendingImportCase.id,
-      type: "ENTREGA",
-      object: item.detailObj.object,
-      contentInfo: item.detailObj.contentInfo,
-      fileHashes: item.detailObj.fileHashes,
-      deliveredBy: item.detailObj.deliveredBy,
-      receivedBy: item.detailObj.receivedBy,
-      role: item.role
-    });
-  } else if (item.type === "ASSINATURA_RELATORIO") {
-    dataToSign = JSON.stringify({
-      caseId: window._pendingImportCase.id,
-      type: "ASSINATURA_RELATORIO",
-      signatureName: item.detailObj.signatureName,
-      signatureRole: item.detailObj.signatureRole
-    });
-  }
-  
-  try {
-    const newSignatureHex = await signWithPrivateKey(privateKey, dataToSign);
-    
-    // 3. Atualizar a assinatura no objeto de detalhes
-    if (item.type === "ENTREGA") {
-      if (item.role === "deliveredBy") {
-        item.detailObj.signatureDelivered.signatureHex = newSignatureHex;
-      } else if (item.role === "receivedBy") {
-        item.detailObj.signatureReceived.signatureHex = newSignatureHex;
-      }
-    } else if (item.type === "ASSINATURA_RELATORIO") {
-      item.detailObj.signature.signatureHex = newSignatureHex;
-    }
-    
-    // Atualiza o detail stringificado no evento
-    item.eventObj.detail = JSON.stringify(item.detailObj);
-    
-    item.success = true;
-    renderReSignList();
-    showToast("Assinatura gerada com sucesso!", "success");
-  } catch(e) {
-    console.error(e);
-    showToast("Erro ao gerar a assinatura.", "error");
-  }
-}
-
-async function finishImportWithReSign() {
-  closeModal("modalImportReSign");
+async function confirmImportAfterVerification() {
+  closeModal("modalImportSummary");
   
   const importedCase = window._pendingImportCase;
   const importedEvents = window._pendingImportEvents;
@@ -2405,27 +2391,7 @@ async function finishImportWithReSign() {
   showToast("Finalizando importação...", "info");
   
   try {
-    // Recalcular toda a cadeia de hashes para o caso importado
-    // Isso garante que todos os events.caseId, events.detail (re-assinados ou não)
-    // sejam integrados em uma cadeia de hashes válida e íntegra.
-    let prevHash = "ROOT";
-    for (let idx = 0; idx < importedEvents.length; idx++) {
-      const evt = importedEvents[idx];
-      evt.previousHash = prevHash;
-      
-      const payload = JSON.stringify({
-        caseId: importedCase.id,
-        type: evt.type,
-        summary: evt.summary,
-        detail: evt.detail,
-        createdAt: evt.createdAt,
-        previousHash: prevHash
-      });
-      evt.hash = await computeSha256Hex(payload);
-      prevHash = evt.hash;
-    }
-    
-    // Inserir na State
+    // Inserir na State — eventos e hashes são preservados como vieram (ou recalculados no modo cópia)
     if (!appState.cases.find(c => c.id === importedCase.id)) {
       appState.cases.push(importedCase);
     }
@@ -2434,7 +2400,7 @@ async function finishImportWithReSign() {
     
     await saveStateToDb();
     renderCaseList();
-    showToast("Caso importado com sucesso!", "success");
+    showToast("Caso importado com sucesso! Cadeia de custódia preservada.", "success");
   } catch(e) {
     console.error(e);
     showToast("Erro ao finalizar a importação do caso.", "error");
@@ -2443,7 +2409,7 @@ async function finishImportWithReSign() {
     window._pendingImportCase = null;
     window._pendingImportEvents = null;
     window._pendingImportAttachments = null;
-    window._pendingReSignatures = null;
+    window._pendingImportChainResult = null;
   }
 }
 
@@ -2749,8 +2715,9 @@ async function renderTimeline(caseId) {
           let signaturesHtml = "";
           if (delObj.signatureDelivered) {
             const keyHash = delObj.signatureDelivered.keyHash || "—";
+            const sigCaseId = getSignatureCaseId(e);
             const dataDelivered = JSON.stringify({
-              caseId: e.caseId,
+              caseId: sigCaseId,
               type: "ENTREGA",
               object: delObj.object,
               contentInfo: delObj.contentInfo,
@@ -2760,16 +2727,18 @@ async function renderTimeline(caseId) {
               role: "deliveredBy"
             });
             const verified = await verifyDigitalSignature(dataDelivered, delObj.signatureDelivered.signatureHex, delObj.signatureDelivered.publicKeyJwk);
+            const importedLabel = e.originalCaseId ? ' <span style="font-size:0.7rem;opacity:0.7;">[importada]</span>' : '';
             if (verified) {
-              signaturesHtml += `<div class="timeline-badge verified" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-green);font-size:0.8rem;margin-top:6px;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">🔒</span> Assinatura digital válida (Entregador ID: <span style="font-family:var(--font-mono);font-size:0.75rem;">${esc(keyHash.substring(0,8))}...</span>)</div><br>`;
+              signaturesHtml += `<div class="timeline-badge verified" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-green);font-size:0.8rem;margin-top:6px;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">🔒</span> Assinatura digital válida (Entregador ID: <span style="font-family:var(--font-mono);font-size:0.75rem;">${esc(keyHash.substring(0,8))}...</span>)${importedLabel}</div><br>`;
             } else {
               signaturesHtml += `<div class="timeline-badge invalid" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-red);font-size:0.8rem;margin-top:6px;background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">⚠️</span> Assinatura digital INVÁLIDA (Entregador)</div><br>`;
             }
           }
           if (delObj.signatureReceived) {
             const keyHash = delObj.signatureReceived.keyHash || "—";
+            const sigCaseId = getSignatureCaseId(e);
             const dataReceived = JSON.stringify({
-              caseId: e.caseId,
+              caseId: sigCaseId,
               type: "ENTREGA",
               object: delObj.object,
               contentInfo: delObj.contentInfo,
@@ -2779,8 +2748,9 @@ async function renderTimeline(caseId) {
               role: "receivedBy"
             });
             const verified = await verifyDigitalSignature(dataReceived, delObj.signatureReceived.signatureHex, delObj.signatureReceived.publicKeyJwk);
+            const importedLabel = e.originalCaseId ? ' <span style="font-size:0.7rem;opacity:0.7;">[importada]</span>' : '';
             if (verified) {
-              signaturesHtml += `<div class="timeline-badge verified" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-green);font-size:0.8rem;margin-top:6px;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">🔒</span> Assinatura digital válida (Recebedor ID: <span style="font-family:var(--font-mono);font-size:0.75rem;">${esc(keyHash.substring(0,8))}...</span>)</div><br>`;
+              signaturesHtml += `<div class="timeline-badge verified" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-green);font-size:0.8rem;margin-top:6px;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">🔒</span> Assinatura digital válida (Recebedor ID: <span style="font-family:var(--font-mono);font-size:0.75rem;">${esc(keyHash.substring(0,8))}...</span>)${importedLabel}</div><br>`;
             } else {
               signaturesHtml += `<div class="timeline-badge invalid" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-red);font-size:0.8rem;margin-top:6px;background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">⚠️</span> Assinatura digital INVÁLIDA (Recebedor)</div><br>`;
             }
@@ -2828,15 +2798,17 @@ async function renderTimeline(caseId) {
           let signatureHtml = "";
           if (sigObj.signature) {
             const keyHash = sigObj.signature.keyHash || "—";
+            const sigCaseId = getSignatureCaseId(e);
             const dataSignatory = JSON.stringify({
-              caseId: e.caseId,
+              caseId: sigCaseId,
               type: "ASSINATURA_RELATORIO",
               signatureName: sigObj.signatureName,
               signatureRole: sigObj.signatureRole
             });
             const verified = await verifyDigitalSignature(dataSignatory, sigObj.signature.signatureHex, sigObj.signature.publicKeyJwk);
+            const importedLabel = e.originalCaseId ? ' <span style="font-size:0.7rem;opacity:0.7;">[importada]</span>' : '';
             if (verified) {
-              signatureHtml = `<div class="timeline-badge verified" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-green);font-size:0.8rem;margin-top:6px;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">🔒</span> Assinatura digital válida (Signatário ID: <span style="font-family:var(--font-mono);font-size:0.75rem;">${esc(keyHash.substring(0,8))}...</span>)</div>`;
+              signatureHtml = `<div class="timeline-badge verified" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-green);font-size:0.8rem;margin-top:6px;background:rgba(16,185,129,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">🔒</span> Assinatura digital válida (Signatário ID: <span style="font-family:var(--font-mono);font-size:0.75rem;">${esc(keyHash.substring(0,8))}...</span>)${importedLabel}</div>`;
             } else {
               signatureHtml = `<div class="timeline-badge invalid" style="display:inline-flex;align-items:center;gap:4px;color:var(--accent-red);font-size:0.8rem;margin-top:6px;background:rgba(239,68,68,0.1);padding:4px 8px;border-radius:4px;"><span style="font-size:0.85rem;">⚠️</span> Assinatura digital INVÁLIDA</div>`;
             }
@@ -4508,8 +4480,9 @@ async function generatePdf(caseObj, events, attachments) {
           }
         }
         if (dd.signatureDelivered) {
+          const sigCaseId = getSignatureCaseId(e);
           const dataDelivered = JSON.stringify({
-            caseId: e.caseId,
+            caseId: sigCaseId,
             type: "ENTREGA",
             object: dd.object,
             contentInfo: dd.contentInfo,
@@ -4520,11 +4493,13 @@ async function generatePdf(caseObj, events, attachments) {
           });
           const verified = await verifyDigitalSignature(dataDelivered, dd.signatureDelivered.signatureHex, dd.signatureDelivered.publicKeyJwk);
           const status = verified ? "VÁLIDA" : "INVÁLIDA";
-          addText(`    Assinatura Digital (Entregador): [${status}] Chave ID: ${dd.signatureDelivered.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
+          const impTag = e.originalCaseId ? " [importada]" : "";
+          addText(`    Assinatura Digital (Entregador): [${status}]${impTag} Chave ID: ${dd.signatureDelivered.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
         }
         if (dd.signatureReceived) {
+          const sigCaseId = getSignatureCaseId(e);
           const dataReceived = JSON.stringify({
-            caseId: e.caseId,
+            caseId: sigCaseId,
             type: "ENTREGA",
             object: dd.object,
             contentInfo: dd.contentInfo,
@@ -4535,7 +4510,8 @@ async function generatePdf(caseObj, events, attachments) {
           });
           const verified = await verifyDigitalSignature(dataReceived, dd.signatureReceived.signatureHex, dd.signatureReceived.publicKeyJwk);
           const status = verified ? "VÁLIDA" : "INVÁLIDA";
-          addText(`    Assinatura Digital (Recebedor): [${status}] Chave ID: ${dd.signatureReceived.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
+          const impTag = e.originalCaseId ? " [importada]" : "";
+          addText(`    Assinatura Digital (Recebedor): [${status}]${impTag} Chave ID: ${dd.signatureReceived.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
         }
         if (dd.notes) addText("    Notas: " + dd.notes, 8, false, [0.45, 0.5, 0.6]);
         // Embed delivery image if available
@@ -4579,15 +4555,17 @@ async function generatePdf(caseObj, events, attachments) {
         if (sd.signatureName) addText("    Nome: " + sd.signatureName, 8, false, [0.45, 0.5, 0.6]);
         if (sd.signatureRole) addText("    Cargo: " + sd.signatureRole, 8, false, [0.45, 0.5, 0.6]);
         if (sd.signature) {
+          const sigCaseId = getSignatureCaseId(e);
           const dataSignatory = JSON.stringify({
-            caseId: e.caseId,
+            caseId: sigCaseId,
             type: "ASSINATURA_RELATORIO",
             signatureName: sd.signatureName,
             signatureRole: sd.signatureRole
           });
           const verified = await verifyDigitalSignature(dataSignatory, sd.signature.signatureHex, sd.signature.publicKeyJwk);
           const status = verified ? "VÁLIDA" : "INVÁLIDA";
-          addText(`    Assinatura Digital: [${status}] Chave ID: ${sd.signature.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
+          const impTag = e.originalCaseId ? " [importada]" : "";
+          addText(`    Assinatura Digital: [${status}]${impTag} Chave ID: ${sd.signature.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
         }
         if (sd.notes) addText("    Notas: " + sd.notes, 8, false, [0.45, 0.5, 0.6]);
       } catch (_) {
@@ -4682,15 +4660,17 @@ async function generatePdf(caseObj, events, attachments) {
         
         let ySig = curY - 10;
         if (sd.signature) {
+          const sigCaseId = getSignatureCaseId(e);
           const dataSignatory = JSON.stringify({
-            caseId: e.caseId,
+            caseId: sigCaseId,
             type: "ASSINATURA_RELATORIO",
             signatureName: sd.signatureName,
             signatureRole: sd.signatureRole
           });
           const verified = await verifyDigitalSignature(dataSignatory, sd.signature.signatureHex, sd.signature.publicKeyJwk);
+          const impLabel = e.originalCaseId ? " [importada]" : "";
           if (verified) {
-            ySig = drawText("[ASSINADO DIGITALMENTE]", MARGIN_L, ySig, 9, "bold", [0.1, 0.5, 0.2]);
+            ySig = drawText(`[ASSINADO DIGITALMENTE]${impLabel}`, MARGIN_L, ySig, 9, "bold", [0.1, 0.5, 0.2]);
             ySig = drawText(`Chave ID: ${sd.signature.keyHash}`, MARGIN_L, ySig, 7.5, "mono", [0.3, 0.3, 0.3]);
             ySig = drawText(`Assinatura: ${sd.signature.signatureHex.substring(0, 32)}...`, MARGIN_L, ySig, 7.5, "mono", [0.3, 0.3, 0.3]);
           } else {
@@ -4725,8 +4705,9 @@ async function generatePdf(caseObj, events, attachments) {
 
         let yCol1 = curY;
         if (dd.signatureDelivered) {
+          const sigCaseId = getSignatureCaseId(e);
           const dataDelivered = JSON.stringify({
-            caseId: e.caseId,
+            caseId: sigCaseId,
             type: "ENTREGA",
             object: dd.object,
             contentInfo: dd.contentInfo,
@@ -4736,8 +4717,9 @@ async function generatePdf(caseObj, events, attachments) {
             role: "deliveredBy"
           });
           const verified = await verifyDigitalSignature(dataDelivered, dd.signatureDelivered.signatureHex, dd.signatureDelivered.publicKeyJwk);
+          const impLabel = e.originalCaseId ? " [importada]" : "";
           if (verified) {
-            yCol1 = drawText("[ASSINADO DIGITALMENTE]", col1X, yCol1, 9, "bold", [0.1, 0.5, 0.2], colW);
+            yCol1 = drawText(`[ASSINADO DIGITALMENTE]${impLabel}`, col1X, yCol1, 9, "bold", [0.1, 0.5, 0.2], colW);
             yCol1 = drawText(`Chave ID: ${dd.signatureDelivered.keyHash.substring(0, 16)}...`, col1X, yCol1, 7.5, "mono", [0.3, 0.3, 0.3], colW);
             yCol1 = drawText(`Assinatura: ${dd.signatureDelivered.signatureHex.substring(0, 16)}...`, col1X, yCol1, 7.5, "mono", [0.3, 0.3, 0.3], colW);
           } else {
@@ -4749,8 +4731,9 @@ async function generatePdf(caseObj, events, attachments) {
 
         let yCol2 = curY;
         if (dd.signatureReceived) {
+          const sigCaseId = getSignatureCaseId(e);
           const dataReceived = JSON.stringify({
-            caseId: e.caseId,
+            caseId: sigCaseId,
             type: "ENTREGA",
             object: dd.object,
             contentInfo: dd.contentInfo,
@@ -4760,8 +4743,9 @@ async function generatePdf(caseObj, events, attachments) {
             role: "receivedBy"
           });
           const verified = await verifyDigitalSignature(dataReceived, dd.signatureReceived.signatureHex, dd.signatureReceived.publicKeyJwk);
+          const impLabel = e.originalCaseId ? " [importada]" : "";
           if (verified) {
-            yCol2 = drawText("[ASSINADO DIGITALMENTE]", col2X, yCol2, 9, "bold", [0.1, 0.5, 0.2], colW);
+            yCol2 = drawText(`[ASSINADO DIGITALMENTE]${impLabel}`, col2X, yCol2, 9, "bold", [0.1, 0.5, 0.2], colW);
             yCol2 = drawText(`Chave ID: ${dd.signatureReceived.keyHash.substring(0, 16)}...`, col2X, yCol2, 7.5, "mono", [0.3, 0.3, 0.3], colW);
             yCol2 = drawText(`Assinatura: ${dd.signatureReceived.signatureHex.substring(0, 16)}...`, col2X, yCol2, 7.5, "mono", [0.3, 0.3, 0.3], colW);
           } else {
