@@ -9,6 +9,8 @@
 <meta name="apple-mobile-web-app-title" content="Fênix Log">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="manifest" href="manifest.json">
+<script src="pdf-lib.min.js"></script>
+<script src="jszip.min.js"></script>
 <title>Fênix Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -442,6 +444,7 @@ a { color: var(--accent-amber); text-decoration: none; }
 
 .timeline-item.type-CASO_CRIADO::before { background: var(--accent-green); box-shadow: 0 0 8px rgba(64,200,120,0.3); }
 .timeline-item.type-ANEXO_IMAGEM::before { background: var(--accent-blue); box-shadow: 0 0 8px rgba(64,144,224,0.3); }
+.timeline-item.type-ANEXO_EVIDENCIA::before { background: var(--accent-purple); box-shadow: 0 0 8px rgba(144,104,208,0.3); }
 .timeline-item.type-SEED_REGISTRADA::before { background: var(--accent-red); box-shadow: 0 0 8px rgba(224,80,80,0.3); }
 .timeline-item.type-TRANSACAO_APREENSAO::before { background: var(--accent-purple); box-shadow: 0 0 8px rgba(144,104,208,0.3); }
 .timeline-item.type-RECUPERACAO_CARTEIRA::before { background: var(--accent-green); box-shadow: 0 0 8px rgba(64,200,120,0.3); }
@@ -1228,14 +1231,16 @@ a { color: var(--accent-amber); text-decoration: none; }
     </div>
 
     <div id="tabAttachments" class="tab-content">
-      <div class="flex-between mb-16">
-        <span style="font-size:0.9rem;color:var(--text-secondary);">Imagens vinculadas ao caso</span>
-        <div class="image-buttons-group">
-          <button class="btn btn-primary btn-sm" onclick="triggerFileInput()">📁 Adicionar arquivo</button>
-          <button class="btn btn-primary btn-sm" onclick="openWebcamCapture('fileInputHidden')">📷 Usar câmera</button>
+      <div class="flex-between mb-16" style="flex-wrap: wrap; gap: 8px;">
+        <span style="font-size:0.9rem;color:var(--text-secondary);">Anexos de Evidências e Fotos do Caso</span>
+        <div class="image-buttons-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="triggerPhotoRegistryInput()">📷 Foto de Registro</button>
+          <button class="btn btn-secondary btn-sm" onclick="openWebcamCapture('fileInputHidden')">🤳 Câmera (Registro)</button>
+          <button class="btn btn-primary btn-sm" onclick="triggerForensicFileInput()">📁 Anexar Evidência (Qualquer Arquivo)</button>
         </div>
       </div>
       <input type="file" id="fileInputHidden" accept="image/*" capture="environment" style="display:none;" onchange="handleFileSelected(event)">
+      <input type="file" id="fileInputForensic" style="display:none;" onchange="handleForensicFileSelected(event)">
       <div id="attachmentsContainer"></div>
     </div>
 
@@ -1777,6 +1782,84 @@ async function computeSha256Hex(str) {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function computeSha256ForBinary(arrayBuffer) {
+  const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function cleanTextForPdf(str) {
+  if (typeof str !== "string") return "";
+  
+  const allowedCodes = new Set([
+    0x20AC, // €
+    0x201A, // ‚
+    0x0192, // ƒ
+    0x201E, // „
+    0x2026, // …
+    0x2020, // †
+    0x2021, // ‡
+    0x02C6, // ˆ
+    0x2030, // ‰
+    0x0160, // Š
+    0x2039, // ‹
+    0x0152, // Œ
+    0x017D, // Ž
+    0x2018, // ‘
+    0x2019, // ’
+    0x201C, // “
+    0x201D, // ”
+    0x2022, // •
+    0x2013, // –
+    0x2014, // —
+    0x02DC, // ˜
+    0x2122, // ™
+    0x0161, // š
+    0x203A, // ›
+    0x0153, // œ
+    0x017E, // ž
+    0x0178  // Ÿ
+  ]);
+
+  let result = "";
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (
+      (code >= 32 && code <= 126) || // ASCII printable
+      (code >= 160 && code <= 255) || // Latin-1 Supplement
+      code === 10 || code === 13 || code === 9 || // newlines/tabs
+      allowedCodes.has(code)
+    ) {
+      result += str[i];
+    } else {
+      if (code >= 0xD800 && code <= 0xDBFF) {
+        const nextCode = str.charCodeAt(i + 1);
+        if (nextCode >= 0xDC00 && nextCode <= 0xDFFF) {
+          i++;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function eventTypeLabelPdf(type) {
+  const map = {
+    "CASO_CRIADO": "Caso criado",
+    "NOTA": "Nota",
+    "ANEXO_IMAGEM": "Anexo de imagem",
+    "ANEXO_EVIDENCIA": "Arquivo de Evidência",
+    "SEED_REGISTRADA": "Seed / Chave",
+    "TRANSACAO_APREENSAO": "Transação de apreensão",
+    "RECUPERACAO_CARTEIRA": "Recuperação de carteira",
+    "ENTREGA": "Entrega / Repasse",
+    "LOCALIZACAO_OBJETO": "Localização de Objeto",
+    "ASSINATURA_RELATORIO": "Assinatura do Relatório",
+    "OUTRO": "Outro"
+  };
+  return map[type] || type;
 }
 
 /* ========================================
@@ -2869,6 +2952,7 @@ function eventTypeLabel(type) {
     "CASO_CRIADO": "📋 Caso criado",
     "NOTA": "📝 Nota",
     "ANEXO_IMAGEM": "📷 Anexo de imagem",
+    "ANEXO_EVIDENCIA": "📁 Arquivo de Evidência",
     "SEED_REGISTRADA": "🔐 Seed / Chave",
     "TRANSACAO_APREENSAO": "🔗 Transação de apreensão",
     "RECUPERACAO_CARTEIRA": "🔄 Recuperação de carteira",
@@ -3263,8 +3347,12 @@ function getAttachmentsForCase(caseId) {
   return appState.attachmentsByCase[caseId] || [];
 }
 
-function triggerFileInput() {
+function triggerPhotoRegistryInput() {
   document.getElementById("fileInputHidden").click();
+}
+
+function triggerForensicFileInput() {
+  document.getElementById("fileInputForensic").click();
 }
 
 async function handleFileSelected(event) {
@@ -3273,7 +3361,7 @@ async function handleFileSelected(event) {
   event.target.value = "";
 
   if (!file.type.startsWith("image/")) {
-    showToast("Apenas imagens são suportadas.", "error");
+    showToast("Apenas imagens são suportadas para foto de registro.", "error");
     return;
   }
 
@@ -3282,15 +3370,40 @@ async function handleFileSelected(event) {
     return;
   }
 
-  showToast("Processando imagem…", "info");
+  showToast("Processando imagem de registro…", "info");
 
   try {
     const att = await addAttachmentToCase(currentCaseId, file, "upload");
     renderAttachments(currentCaseId);
-    showToast("Imagem anexada!", "success");
+    showToast("Foto de registro anexada!", "success");
   } catch (e) {
     console.error(e);
-    showToast("Erro ao anexar imagem.", "error");
+    showToast("Erro ao anexar imagem de registro.", "error");
+  }
+}
+
+async function handleForensicFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = "";
+
+  if (file.size > 500 * 1024 * 1024) {
+    showToast("Arquivo de evidência muito grande (máx. 500 MB).", "error");
+    return;
+  }
+
+  showToast("Lendo arquivo e computando hash original…", "info");
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const originalHash = await computeSha256ForBinary(arrayBuffer);
+    
+    const att = await addForensicAttachmentToCase(currentCaseId, file, originalHash);
+    renderAttachments(currentCaseId);
+    showToast("Evidência anexada com sucesso!", "success");
+  } catch (e) {
+    console.error(e);
+    showToast("Erro ao processar arquivo de evidência.", "error");
   }
 }
 
@@ -3317,6 +3430,7 @@ async function addAttachmentToCase(caseId, file, originLabel) {
     sizeBytes: file.size,
     createdAt: now,
     origin: originLabel || "upload",
+    role: "registro",
     dataBase64: dataUrl,
     fileHash
   };
@@ -3326,9 +3440,52 @@ async function addAttachmentToCase(caseId, file, originLabel) {
   }
   appState.attachmentsByCase[caseId].push(attachment);
 
-  const evt = await createCustodyEvent(caseId, "ANEXO_IMAGEM", "Imagem anexada: " + file.name, {
+  const evt = await createCustodyEvent(caseId, "ANEXO_IMAGEM", "Foto de registro anexada: " + file.name, {
     attachmentId: id,
     fileHash: fileHash
+  });
+  if (!appState.eventsByCase[caseId]) {
+    appState.eventsByCase[caseId] = [];
+  }
+  appState.eventsByCase[caseId].push(evt);
+
+  await saveStateToDb();
+  return attachment;
+}
+
+async function addForensicAttachmentToCase(caseId, file, originalHash) {
+  const id = "att-" + Date.now().toString() + "-" + Math.floor(Math.random() * 1000);
+  const now = new Date().toISOString();
+
+  let thumbnail = null;
+  if (file.type.startsWith("image/")) {
+    try {
+      thumbnail = await compressImageFile(file);
+    } catch (_) {}
+  }
+
+  const attachment = {
+    id,
+    caseId,
+    fileName: file.name,
+    mimeType: file.type,
+    sizeBytes: file.size,
+    createdAt: now,
+    origin: "upload_evidencia",
+    role: "evidencia",
+    fileHash: originalHash,
+    dataBase64: thumbnail,
+    dataBlob: file
+  };
+
+  if (!appState.attachmentsByCase[caseId]) {
+    appState.attachmentsByCase[caseId] = [];
+  }
+  appState.attachmentsByCase[caseId].push(attachment);
+
+  const evt = await createCustodyEvent(caseId, "ANEXO_EVIDENCIA", "Evidência formal anexada: " + file.name, {
+    attachmentId: id,
+    fileHash: originalHash
   });
   if (!appState.eventsByCase[caseId]) {
     appState.eventsByCase[caseId] = [];
@@ -3502,6 +3659,7 @@ async function addCapturedAttachmentToCase(caseId, dataUrl) {
     sizeBytes: sizeBytes,
     createdAt: now,
     origin: "camera",
+    role: "registro",
     dataBase64: dataUrl,
     fileHash
   };
@@ -3589,15 +3747,6 @@ function adjustImageButtonsForDevice() {
     cameraButtons.forEach(btn => {
       btn.style.display = "none";
     });
-
-    const fileButtons = document.querySelectorAll(".image-buttons-group button:not([onclick*='openWebcamCapture'])");
-    fileButtons.forEach(btn => {
-      if (btn.classList.contains("btn-primary")) {
-        btn.textContent = "＋ Adicionar imagem";
-      } else {
-        btn.textContent = "📷 Selecionar imagem";
-      }
-    });
   }
 }
 
@@ -3608,11 +3757,12 @@ function renderAttachments(caseId) {
   if (attachments.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">📷</div>
-        <div class="empty-state-text">Nenhum anexo</div>
-        <div class="image-buttons-group" style="justify-content: center; width: 100%;">
-          <button class="btn btn-primary btn-sm" onclick="triggerFileInput()">📁 Adicionar arquivo</button>
-          <button class="btn btn-primary btn-sm" onclick="openWebcamCapture('fileInputHidden')">📷 Usar câmera</button>
+        <div class="empty-state-icon">📁</div>
+        <div class="empty-state-text">Nenhum anexo registrado</div>
+        <div class="image-buttons-group" style="justify-content: center; width: 100%; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="triggerPhotoRegistryInput()">📷 Foto de Registro</button>
+          <button class="btn btn-secondary btn-sm" onclick="openWebcamCapture('fileInputHidden')">🤳 Câmera (Registro)</button>
+          <button class="btn btn-primary btn-sm" onclick="triggerForensicFileInput()">📁 Anexar Evidência (Qualquer Arquivo)</button>
         </div>
       </div>`;
     adjustImageButtonsForDevice();
@@ -3623,9 +3773,10 @@ function renderAttachments(caseId) {
   for (const att of attachments) {
     const hashShort = att.fileHash.substring(0, 12);
     const sizeStr = formatBytes(att.sizeBytes);
+    const thumbHtml = getAttachmentThumbnailHtml(att);
     html += `
-      <div class="attachment-item" onclick="showImagePreview('${att.id}')">
-        <img class="attachment-thumb" src="${att.dataBase64}" alt="${esc(att.fileName)}" loading="lazy">
+      <div class="attachment-item" onclick="handleAttachmentClick('${att.id}')">
+        ${thumbHtml}
         <div class="attachment-info">
           <div class="attachment-name">${esc(att.fileName)}</div>
           <div class="attachment-meta">
@@ -3639,12 +3790,42 @@ function renderAttachments(caseId) {
   container.innerHTML = html;
 }
 
-function showImagePreview(attId) {
+function getAttachmentThumbnailHtml(att) {
+  if (att.role === "registro" || (att.role === "evidencia" && att.mimeType.startsWith("image/") && att.dataBase64)) {
+    return `<img class="attachment-thumb" src="${att.dataBase64}" alt="${esc(att.fileName)}" loading="lazy">`;
+  }
+  
+  let icon = "📁";
+  let color = "var(--text-muted)";
+  if (att.mimeType === "application/pdf") {
+    icon = "📄";
+    color = "var(--accent-red)";
+  } else if (att.mimeType.startsWith("video/")) {
+    icon = "🎥";
+    color = "var(--accent-blue)";
+  } else if (att.mimeType.startsWith("audio/")) {
+    icon = "🎵";
+    color = "var(--accent-purple)";
+  }
+  
+  return `
+    <div class="attachment-thumb" style="display: flex; align-items: center; justify-content: center; font-size: 1.5rem; background: var(--bg-input); color: ${color}; border: 1px solid var(--border-primary);">
+      ${icon}
+    </div>`;
+}
+
+function handleAttachmentClick(attId) {
   const attachments = getAttachmentsForCase(currentCaseId);
   const att = attachments.find(a => a.id === attId);
   if (!att) return;
-  document.getElementById("imgPreviewImg").src = att.dataBase64;
-  document.getElementById("imgPreviewOverlay").classList.add("active");
+
+  if (att.role === "registro" || (att.role === "evidencia" && att.mimeType.startsWith("image/") && att.dataBase64)) {
+    document.getElementById("imgPreviewImg").src = att.dataBase64;
+    document.getElementById("imgPreviewOverlay").classList.add("active");
+  } else if (att.dataBlob) {
+    downloadFile(att.fileName, att.dataBlob, att.mimeType);
+    showToast(`Baixando evidência: ${att.fileName}`, "info");
+  }
 }
 
 function closeImagePreview() {
@@ -3687,8 +3868,17 @@ function renderExportSection(caseId) {
       <button class="btn btn-secondary btn-sm" onclick="handleExportPdf()">Exportar</button>
     </div>
 
+    <div class="export-card">
+      <div class="export-icon" style="background: var(--accent-amber-glow); font-size: 1.5rem;">📁</div>
+      <div class="export-info">
+        <h4>Exportar pacote ZIP completo</h4>
+        <p>Gera um arquivo .zip contendo o relatório PDF consolidado e uma pasta com as evidências brutas originais (PDFs, vídeos, imagens).</p>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="handleExportZip()">Exportar ZIP</button>
+    </div>
+
     <div style="margin-top:16px;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border-primary);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--text-muted);">
-      ℹ️ A exportação JSON inclui imagens em base64. A exportação PDF inclui imagens dos anexos, hashes completos (SHA-256) e dados de integridade.
+      ℹ️ A exportação JSON inclui imagens em base64. A exportação PDF inclui imagens dos anexos, hashes completos (SHA-256) e dados de integridade. A exportação ZIP consolida o relatório PDF e os arquivos de evidências brutos.
     </div>
   `;
 }
@@ -3994,13 +4184,61 @@ async function handleExportPdf() {
   }
 }
 
+async function handleExportZip() {
+  const c = getCaseById(currentCaseId);
+  if (!c) return;
+
+  const events = getEventsForCase(currentCaseId);
+  const attachments = getAttachmentsForCase(currentCaseId);
+
+  showToast("Preparando pacote ZIP...", "info");
+
+  try {
+    const pdfBytes = await generatePdf(c, events, attachments);
+
+    const zip = new JSZip();
+
+    const safeName = c.caseNumber.replace(/[^a-zA-Z0-9]/g, "_");
+    const now = new Date();
+    const pad = (num) => String(num).padStart(2, '0');
+    const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    
+    const pdfFileName = `relatorio-forense-${safeName}-${dateStr}.pdf`;
+    zip.file(pdfFileName, pdfBytes);
+
+    const folderEvidencias = zip.folder("evidencias");
+
+    for (const att of attachments) {
+      if (att.role === "evidencia" && att.dataBlob) {
+        const arrayBuffer = await att.dataBlob.arrayBuffer();
+        folderEvidencias.file(att.fileName, new Uint8Array(arrayBuffer));
+      }
+    }
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    downloadFile(`pacote-custodia-${safeName}-${dateStr}.zip`, zipBlob, "application/zip");
+    showToast("Pacote ZIP exportado!", "success");
+  } catch (e) {
+    console.error("Erro ao gerar pacote ZIP:", e);
+    showToast("Erro ao exportar pacote ZIP.", "error");
+  }
+}
+
 /*
  * Gerador de PDF inline – sem dependências externas.
  * Produz um PDF 1.4 válido com texto (WinAnsiEncoding) e imagens JPEG embutidas.
  * Hashes completos SHA-256 e imagens dos anexos.
  */
 async function generatePdf(caseObj, events, attachments) {
-  const PAGE_W = 595.28;   // A4 pt
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+  const pdfDoc = await PDFDocument.create();
+
+  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const courierFont = await pdfDoc.embedFont(StandardFonts.Courier);
+
+  const PAGE_W = 595.28;
   const PAGE_H = 841.89;
   const MARGIN_L = 50;
   const MARGIN_R = 50;
@@ -4008,172 +4246,65 @@ async function generatePdf(caseObj, events, attachments) {
   const MARGIN_B = 60;
   const LINE_HEIGHT = 14;
   const MAX_TEXT_W = PAGE_W - MARGIN_L - MARGIN_R;
-  const IMG_MAX_W = 300;
-  const IMG_MAX_H = 160;
-  const IMG_MIN_SCALE = 0.60; // Minimum 60% of standard size before forcing new page
 
-  // Pre-process institution logo if available
-  let logoImgObj = null;
-  if (institutionConfig.logoDataUrl) {
-    try {
-      logoImgObj = await dataUrlToJpegBytes(institutionConfig.logoDataUrl, 1000, 1000, 0.95);
-    } catch (e) {
-      console.warn('Could not convert institution logo for PDF:', e);
+  let page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+  let curY = PAGE_H - MARGIN_T;
+
+  function ensureSpace(needed) {
+    if (curY - needed < MARGIN_B) {
+      page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+      curY = PAGE_H - MARGIN_T;
     }
   }
 
-  // Collect image objects to embed: { jpegBytes, width, height, objId }
-  const imageObjects = [];
+  function addText(text, fontSize, fontStyle, color) {
+    text = cleanTextForPdf(text);
+    let font = helveticaFont;
+    if (fontStyle === true || fontStyle === "bold") font = helveticaBold;
+    else if (fontStyle === "mono") font = courierFont;
 
-  // Pre-process all attachment images to JPEG
-  for (const att of attachments) {
-    if (att.dataBase64) {
-      try {
-        const imgData = await dataUrlToJpegBytes(att.dataBase64, 500, 400);
-        imageObjects.push({ ...imgData, attId: att.id, objId: null });
-      } catch (e) {
-        console.warn('Could not convert image for PDF:', att.fileName, e);
-      }
+    const r = color ? color[0] : 0.1;
+    const g = color ? color[1] : 0.1;
+    const b = color ? color[2] : 0.14;
+
+    const wrappedLines = wrapText(text, fontSize, MAX_TEXT_W);
+    for (const line of wrappedLines) {
+      ensureSpace(LINE_HEIGHT);
+      page.drawText(line, {
+        x: MARGIN_L,
+        y: curY,
+        size: fontSize,
+        font: font,
+        color: rgb(r, g, b)
+      });
+      curY -= LINE_HEIGHT;
     }
   }
 
-  // Also collect recovery event images
-  const recoveryImages = [];
-  for (const e of events) {
-    if (e.type === 'RECUPERACAO_CARTEIRA' && e.detail) {
-      try {
-        const rd = JSON.parse(e.detail);
-        if (rd.imageDataUrl) {
-          const imgData = await dataUrlToJpegBytes(rd.imageDataUrl, 500, 400);
-          recoveryImages.push({ ...imgData, eventId: e.id, objId: null });
-        }
-      } catch (_) {}
+  function drawText(text, x, y, fontSize, fontStyle, color, maxW) {
+    text = cleanTextForPdf(text);
+    let font = helveticaFont;
+    if (fontStyle === true || fontStyle === "bold") font = helveticaBold;
+    else if (fontStyle === "mono") font = courierFont;
+
+    const r = color ? color[0] : 0.1;
+    const g = color ? color[1] : 0.1;
+    const b = color ? color[2] : 0.14;
+
+    const limit = maxW || (PAGE_W - x - MARGIN_R);
+    const wrappedLines = wrapText(text, fontSize, limit);
+    let currentY = y;
+    for (const line of wrappedLines) {
+      page.drawText(line, {
+        x: x,
+        y: currentY,
+        size: fontSize,
+        font: font,
+        color: rgb(r, g, b)
+      });
+      currentY -= (fontSize + 4);
     }
-  }
-
-  // Also collect delivery event images
-  const deliveryImages = [];
-  for (const e of events) {
-    if (e.type === 'ENTREGA' && e.detail) {
-      try {
-        const dd = JSON.parse(e.detail);
-        if (dd.imageDataUrl) {
-          const imgData = await dataUrlToJpegBytes(dd.imageDataUrl, 500, 400);
-          deliveryImages.push({ ...imgData, eventId: e.id, objId: null });
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Also collect location event images
-  const locationImages = [];
-  for (const e of events) {
-    if (e.type === 'LOCALIZACAO_OBJETO' && e.detail) {
-      try {
-        const ld = JSON.parse(e.detail);
-        if (ld.imageDataUrl) {
-          const imgData = await dataUrlToJpegBytes(ld.imageDataUrl, 500, 400);
-          locationImages.push({ ...imgData, eventId: e.id, objId: null });
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Also collect transaction (apreensão) event images
-  const txImages = [];
-  for (const e of events) {
-    if (e.type === 'TRANSACAO_APREENSAO' && e.detail) {
-      try {
-        const td = JSON.parse(e.detail);
-        if (td.imageDataUrl) {
-          const imgData = await dataUrlToJpegBytes(td.imageDataUrl, 500, 400);
-          txImages.push({ ...imgData, eventId: e.id, objId: null });
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Also collect seed/sensitive event images
-  const seedImages = [];
-  for (const e of events) {
-    if (e.type === 'SEED_REGISTRADA' && e.detail) {
-      try {
-        const sd = JSON.parse(e.detail);
-        if (sd.imageDataUrl) {
-          const imgData = await dataUrlToJpegBytes(sd.imageDataUrl, 500, 400);
-          seedImages.push({ ...imgData, eventId: e.id, objId: null });
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Also collect generic (NOTA/OUTRO) event images
-  const otherImages = [];
-  for (const e of events) {
-    if ((e.type === 'NOTA' || e.type === 'OUTRO') && e.detail) {
-      try {
-        const od = JSON.parse(e.detail);
-        if (od.imageDataUrl) {
-          const imgData = await dataUrlToJpegBytes(od.imageDataUrl, 500, 400);
-          otherImages.push({ ...imgData, eventId: e.id, objId: null });
-        }
-      } catch (_) {}
-    }
-  }
-
-  // PDF objects collector
-  const objects = [];
-  let nextObjId = 1;
-
-  function addObj(content) {
-    const id = nextObjId++;
-    objects.push({ id, content, binaryStream: null });
-    return id;
-  }
-
-  // Add a binary stream object (for JPEG images)
-  function addBinaryObj(headerDict, binaryData) {
-    const id = nextObjId++;
-    objects.push({ id, content: null, binaryStream: { header: headerDict, data: binaryData } });
-    return id;
-  }
-
-  // WinAnsiEncoding map
-  const WIN_ANSI_MAP = {
-    '\u00C0': 192, '\u00C1': 193, '\u00C2': 194, '\u00C3': 195, '\u00C4': 196,
-    '\u00C5': 197, '\u00C6': 198, '\u00C7': 199, '\u00C8': 200, '\u00C9': 201,
-    '\u00CA': 202, '\u00CB': 203, '\u00CC': 204, '\u00CD': 205, '\u00CE': 206,
-    '\u00CF': 207, '\u00D0': 208, '\u00D1': 209, '\u00D2': 210, '\u00D3': 211,
-    '\u00D4': 212, '\u00D5': 213, '\u00D6': 214, '\u00D7': 215, '\u00D8': 216,
-    '\u00D9': 217, '\u00DA': 218, '\u00DB': 219, '\u00DC': 220, '\u00DD': 221,
-    '\u00DE': 222, '\u00DF': 223, '\u00E0': 224, '\u00E1': 225, '\u00E2': 226,
-    '\u00E3': 227, '\u00E4': 228, '\u00E5': 229, '\u00E6': 230, '\u00E7': 231,
-    '\u00E8': 232, '\u00E9': 233, '\u00EA': 234, '\u00EB': 235, '\u00EC': 236,
-    '\u00ED': 237, '\u00EE': 238, '\u00EF': 239, '\u00F0': 240, '\u00F1': 241,
-    '\u00F2': 242, '\u00F3': 243, '\u00F4': 244, '\u00F5': 245, '\u00F6': 246,
-    '\u00F7': 247, '\u00F8': 248, '\u00F9': 249, '\u00FA': 250, '\u00FB': 251,
-    '\u00FC': 252, '\u00FD': 253, '\u00FE': 254, '\u00FF': 255,
-    '\u2013': 150, '\u2014': 151, '\u2018': 145, '\u2019': 146,
-    '\u201C': 147, '\u201D': 148, '\u2022': 149, '\u2026': 133,
-    '\u20AC': 128, '\u0152': 140, '\u0153': 156, '\u0160': 138,
-    '\u0161': 154, '\u0178': 159, '\u017D': 142, '\u017E': 158,
-    '\u0192': 131, '\u02C6': 136, '\u02DC': 152, '\u2020': 134,
-    '\u2021': 135, '\u2030': 137, '\u2039': 139, '\u203A': 155,
-    '\u2122': 153,
-  };
-
-  function toWinAnsiHex(str) {
-    let hex = '';
-    for (let i = 0; i < str.length; i++) {
-      const ch = str[i];
-      const code = ch.charCodeAt(0);
-      let byteVal;
-      if (code < 128) { byteVal = code; }
-      else if (WIN_ANSI_MAP[ch] !== undefined) { byteVal = WIN_ANSI_MAP[ch]; }
-      else { byteVal = 63; }
-      hex += byteVal.toString(16).padStart(2, '0');
-    }
-    return '<' + hex + '>';
+    return currentY;
   }
 
   function textWidth(str, fontSize) {
@@ -4201,207 +4332,76 @@ async function generatePdf(caseObj, events, attachments) {
     return lines;
   }
 
-  // Page drawing commands & image references per page
-  const pages = [];
-  let currentPage = [];
-  let currentPageImages = []; // { imgName, imgObjId, x, y, w, h }
-  let curY = PAGE_H - MARGIN_T;
-
-  function ensureSpace(needed) {
-    if (curY - needed < MARGIN_B) {
-      pages.push({ commands: currentPage, images: currentPageImages });
-      currentPage = [];
-      currentPageImages = [];
-      curY = PAGE_H - MARGIN_T;
-    }
-  }
-
-  function addText(text, fontSize, fontStyle, color) {
-    let fontName = "/F1";
-    if (fontStyle === true || fontStyle === "bold") fontName = "/F2";
-    else if (fontStyle === "mono") fontName = "/F3";
-    const r = color ? color[0] : 0.1;
-    const g = color ? color[1] : 0.1;
-    const b = color ? color[2] : 0.14;
-    const wrappedLines = wrapText(text, fontSize, MAX_TEXT_W);
-    for (const line of wrappedLines) {
-      ensureSpace(LINE_HEIGHT);
-      const hexStr = toWinAnsiHex(line);
-      currentPage.push(`BT ${fontName} ${fontSize} Tf ${r} ${g} ${b} rg ${MARGIN_L} ${curY.toFixed(2)} Td ${hexStr} Tj ET`);
-      curY -= LINE_HEIGHT;
-    }
-  }
-
-  function drawText(text, x, y, fontSize, fontStyle, color, maxW) {
-    let fontName = "/F1";
-    if (fontStyle === true || fontStyle === "bold") fontName = "/F2";
-    else if (fontStyle === "mono") fontName = "/F3";
-    const r = color ? color[0] : 0.1;
-    const g = color ? color[1] : 0.1;
-    const b = color ? color[2] : 0.14;
-    const limit = maxW || (PAGE_W - x - MARGIN_R);
-    const wrappedLines = wrapText(text, fontSize, limit);
-    let currentY = y;
-    for (const line of wrappedLines) {
-      const hexStr = toWinAnsiHex(line);
-      currentPage.push(`BT ${fontName} ${fontSize} Tf ${r} ${g} ${b} rg ${x.toFixed(2)} ${currentY.toFixed(2)} Td ${hexStr} Tj ET`);
-      currentY -= (fontSize + 4);
-    }
-    return currentY;
-  }
-
-  // Place an image on the current page (imgObj has objId, width, height in pixels)
-  function addImage(imgObj, imgName) {
-    // Calculate standard dimensions (scaled to max limits)
-    let w = imgObj.width;
-    let h = imgObj.height;
-    const scale = Math.min(IMG_MAX_W / w, IMG_MAX_H / h, 1);
-    const stdW = Math.floor(w * scale);
-    const stdH = Math.floor(h * scale);
-
-    const availableSpace = curY - MARGIN_B - 10;
-    let finalW = stdW;
-    let finalH = stdH;
-
-    if (stdH <= availableSpace) {
-      // Scenario A: fits at standard size — use as-is
-      finalW = stdW;
-      finalH = stdH;
-    } else {
-      // Calculate how much we'd need to shrink to fit current page
-      const fitScale = availableSpace / stdH;
-      if (fitScale >= IMG_MIN_SCALE) {
-        // Scenario B: shrink proportionally to fit (down to 60%)
-        finalW = Math.floor(stdW * fitScale);
-        finalH = Math.floor(stdH * fitScale);
-      } else {
-        // Scenario C: would need to shrink below 60% — force new page, use standard size
-        pages.push({ commands: currentPage, images: currentPageImages });
-        currentPage = [];
-        currentPageImages = [];
-        curY = PAGE_H - MARGIN_T;
-        finalW = stdW;
-        finalH = stdH;
-      }
-    }
-
-    // Center image horizontally within the text area
-    const imgX = MARGIN_L + (MAX_TEXT_W - finalW) / 2;
-    const imgY = curY - finalH;
-    currentPage.push(`q ${finalW} 0 0 ${finalH} ${imgX.toFixed(2)} ${imgY.toFixed(2)} cm /${imgName} Do Q`);
-    currentPageImages.push({ imgName, imgObjId: imgObj.objId });
-    curY = imgY - 6;
-  }
-
   function addLine() {
     ensureSpace(10);
-    currentPage.push(`${MARGIN_L} ${curY.toFixed(2)} m ${PAGE_W - MARGIN_R} ${curY.toFixed(2)} l 0.7 0.7 0.75 RG 0.5 w S`);
+    page.drawLine({
+      start: { x: MARGIN_L, y: curY },
+      end: { x: PAGE_W - MARGIN_R, y: curY },
+      thickness: 0.5,
+      color: rgb(0.7, 0.7, 0.75)
+    });
     curY -= 10;
   }
 
   function addSpacer(h) { curY -= h; }
 
-  // Create image XObjects and assign objIds
-  for (let i = 0; i < imageObjects.length; i++) {
-    const img = imageObjects[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  for (let i = 0; i < recoveryImages.length; i++) {
-    const img = recoveryImages[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  for (let i = 0; i < deliveryImages.length; i++) {
-    const img = deliveryImages[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  for (let i = 0; i < locationImages.length; i++) {
-    const img = locationImages[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  for (let i = 0; i < txImages.length; i++) {
-    const img = txImages[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  for (let i = 0; i < seedImages.length; i++) {
-    const img = seedImages[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  for (let i = 0; i < otherImages.length; i++) {
-    const img = otherImages[i];
-    const header = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`;
-    img.objId = addBinaryObj(header, img.bytes);
-  }
-  if (logoImgObj) {
-    const header = `<< /Type /XObject /Subtype /Image /Width ${logoImgObj.width} /Height ${logoImgObj.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logoImgObj.bytes.length} >>`;
-    logoImgObj.objId = addBinaryObj(header, logoImgObj.bytes);
-  }
-
-  // ——— Build the PDF content ———
-
-  const headerStart = curY;
+  // Draw Logo & Header
   let textX = MARGIN_L;
   let logoH = 0;
-
-  if (logoImgObj) {
-    let w = logoImgObj.width;
-    let h = logoImgObj.height;
-    const scale = Math.min(55 / w, 55 / h, 1);
-    w = Math.floor(w * scale);
-    h = Math.floor(h * scale);
-    logoH = h;
-    ensureSpace(h + 10);
-    const imgY = curY - h;
-    currentPage.push(`q ${w} 0 0 ${h} ${MARGIN_L} ${imgY.toFixed(2)} cm /InstitutionLogo Do Q`);
-    textX = MARGIN_L + w + 15;
+  if (institutionConfig.logoDataUrl) {
+    try {
+      const logoImgObj = await dataUrlToJpegBytes(institutionConfig.logoDataUrl, 300, 300, 0.95);
+      if (logoImgObj && logoImgObj.bytes) {
+        const embeddedLogo = await pdfDoc.embedJpg(logoImgObj.bytes);
+        let w = logoImgObj.width;
+        let h = logoImgObj.height;
+        const scale = Math.min(55 / w, 55 / h, 1);
+        w = Math.floor(w * scale);
+        h = Math.floor(h * scale);
+        logoH = h;
+        ensureSpace(h + 10);
+        const imgY = curY - h;
+        page.drawImage(embeddedLogo, {
+          x: MARGIN_L,
+          y: imgY,
+          width: w,
+          height: h
+        });
+        textX = MARGIN_L + w + 15;
+      }
+    } catch (e) {
+      console.warn("Could not embed institution logo:", e);
+    }
   }
 
-  // ─── Cores do cabeçalho ───
   const darkGray = [0.15, 0.15, 0.2];
   const midGray = [0.4, 0.45, 0.5];
   const primaryAccent = [0.2, 0.25, 0.3];
 
-  // ─── Tamanhos de fonte do cabeçalho ───
-  const s1 = 8.5;   // Instituição
-  const s2 = 18;     // FENIX LOG
-  const s3 = 10;     // Subtítulo
-  const s4 = 7;      // Metadados
+  const y1 = curY - 2;
+  const y2 = y1 - 8.5 - 11;
+  const y3 = y2 - 18 * 0.85;
+  const y4 = y3 - 10 - 1;
 
-  // ─── Posições de baseline (leading compacto) ───
-  // Cada baseline é calculada como: anterior - leading
-  // Leading = distância baseline-a-baseline (aprox. 1.15× a fonte da linha ANTERIOR)
-  const y1 = headerStart - 2;              // Instituição: logo alinhada ao topo
-  const y2 = y1 - s1 - 11;                 // FENIX LOG: 19.5pt abaixo
-  const y3 = y2 - s2 * 0.85;              // Subtítulo: ~15pt abaixo (FENIX LOG é caps, sem descendentes)
-  const y4 = y3 - s3 - 1;                 // Metadados: 11pt abaixo
-
-  // Linha 1: Instituição
   if (institutionConfig.name) {
-    drawText(institutionConfig.name.toUpperCase(), textX, y1, s1, "bold", midGray);
+    drawText(institutionConfig.name.toUpperCase(), textX, y1, 8.5, "bold", midGray);
   } else {
-    drawText("PROTOCOLO DE SEGURANÇA E AUDITORIA FORENSE", textX, y1, s1, "bold", midGray);
+    drawText("PROTOCOLO DE SEGURANÇA E AUDITORIA FORENSE", textX, y1, 8.5, "bold", midGray);
   }
+  drawText("FENIX LOG", textX, y2, 18, "bold", primaryAccent);
+  drawText("Relatório de Integridade e Custódia de Evidências", textX, y3, 10, false, darkGray);
+  drawText("Algoritmo de Integridade: SHA-256 | Cadeia de Custódia Local", textX, y4, 7, "mono", midGray);
 
-  // Linha 2: FENIX LOG
-  drawText("FENIX LOG", textX, y2, s2, "bold", primaryAccent);
-
-  // Linha 3: Subtítulo
-  drawText("Relatório de Integridade e Custódia de Evidências", textX, y3, s3, false, darkGray);
-
-  // Linha 4: Metadados
-  drawText("Algoritmo de Integridade: SHA-256 | Cadeia de Custódia Local", textX, y4, s4, "mono", midGray);
-
-  const textEndY = y4 - 2;
-  const heightUsed = headerStart - Math.min(textEndY, headerStart - logoH);
-  curY = headerStart - heightUsed - 10;
+  const heightUsed = curY - Math.min(y4 - 2, curY - logoH);
+  curY = curY - heightUsed - 10;
 
   ensureSpace(5);
-  currentPage.push(`${MARGIN_L} ${curY.toFixed(2)} m ${PAGE_W - MARGIN_R} ${curY.toFixed(2)} l 0.3 0.3 0.35 RG 1.5 w S`);
+  page.drawLine({
+    start: { x: MARGIN_L, y: curY },
+    end: { x: PAGE_W - MARGIN_R, y: curY },
+    thickness: 1.5,
+    color: rgb(0.3, 0.3, 0.35)
+  });
   curY -= 12;
 
   // Case details
@@ -4429,200 +4429,167 @@ async function generatePdf(caseObj, events, attachments) {
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     ensureSpace(LINE_HEIGHT * 3);
-    addText(`#${i + 1}  [${e.type}]  ${e.summary}`, 9, true);
+    addText(`#${i + 1}  [${eventTypeLabelPdf(e.type)}]  ${e.summary}`, 9, true);
     addText(`    Data: ${formatDateTime(e.createdAt)}`, 8, false, [0.45, 0.5, 0.6]);
     addText(`    Algoritmo de integridade: SHA-256`, 8, false, [0.45, 0.5, 0.6]);
     addText(`    Hash do evento: ${e.hash}`, 7, "mono", [0.45, 0.5, 0.6]);
     addText(`    Hash anterior: ${e.previousHash}`, 7, "mono", [0.45, 0.5, 0.6]);
 
-    if (e.type === "TRANSACAO_APREENSAO" && e.detail) {
+    if (e.detail) {
       try {
-        const txd = JSON.parse(e.detail);
-        ensureSpace(LINE_HEIGHT * 7);
-        if (txd.walletDest) addText("    Carteira destino (institucional): " + txd.walletDest, 8, false, [0.25, 0.56, 0.88]);
-        if (txd.walletOrigin) addText("    Carteira origem: " + txd.walletOrigin, 8, false, [0.45, 0.5, 0.6]);
-        if (txd.amount) addText("    Valor enviado: " + txd.amount, 8, false, [0.45, 0.5, 0.6]);
-        if (txd.fee) addText("    Taxa paga: " + txd.fee, 8, false, [0.45, 0.5, 0.6]);
-        if (txd.txHash) addText("    Hash TX: " + txd.txHash, 8, false, [0.45, 0.5, 0.6]);
-        if (txd.explorerUrl) addText("    Explorer: " + txd.explorerUrl, 8, false, [0.45, 0.5, 0.6]);
-        const txImg = txImages.find(ti => ti.eventId === e.id);
-        if (txImg) {
-          addText("    Imagem de evidência:", 8, false, [0.45, 0.5, 0.6]);
-          addImage(txImg, `TxImg_${e.id.replace(/[^a-zA-Z0-9]/g, '')}`);
-        }
-      } catch (_) {
-        addText("    [Dados da transação]", 8, false, [0.45, 0.5, 0.6]);
-      }
-    } else if (e.type === "RECUPERACAO_CARTEIRA" && e.detail) {
-      try {
-        const rd = JSON.parse(e.detail);
-        ensureSpace(LINE_HEIGHT * 6);
-        if (rd.procedureDescription) addText("    Procedimento: " + rd.procedureDescription, 8, false, [0.45, 0.5, 0.6]);
-        if (rd.brand) addText("    Marca: " + rd.brand, 8, false, [0.45, 0.5, 0.6]);
-        if (rd.model) addText("    Modelo: " + rd.model, 8, false, [0.45, 0.5, 0.6]);
-        if (rd.software) addText("    Software/App: " + rd.software, 8, false, [0.45, 0.5, 0.6]);
-        // Embed recovery image if available
-        const recImg = recoveryImages.find(ri => ri.eventId === e.id);
-        if (recImg) {
-          addText("    Imagem do processo:", 8, false, [0.45, 0.5, 0.6]);
-          addImage(recImg, `RecImg_${e.id.replace(/[^a-zA-Z0-9]/g, '')}`);
-        }
-      } catch (_) {
-        addText("    [Dados de recuperação]", 8, false, [0.45, 0.5, 0.6]);
-      }
-    } else if (e.type === "ENTREGA" && e.detail) {
-      try {
-        const dd = JSON.parse(e.detail);
-        ensureSpace(LINE_HEIGHT * 7);
-        if (dd.object) addText("    Objeto: " + dd.object, 8, false, [0.45, 0.5, 0.6]);
-        if (dd.contentInfo) addText("    Conteúdo e Informações: " + dd.contentInfo, 8, false, [0.45, 0.5, 0.6]);
-        if (dd.deliveredBy) addText("    Entregue por: " + dd.deliveredBy, 8, false, [0.45, 0.5, 0.6]);
-        if (dd.receivedBy) addText("    Recebido por: " + dd.receivedBy, 8, false, [0.45, 0.5, 0.6]);
-        if (dd.fileHashes) {
-          addText("    Hashes dos arquivos:", 8, false, [0.45, 0.5, 0.6]);
-          const lines = dd.fileHashes.split("\n");
-          for (const line of lines) {
-            if (line.trim()) {
-              addText("      " + line.trim(), 7.5, "mono", [0.3, 0.35, 0.4]);
+        const parsed = JSON.parse(e.detail);
+        if (e.type === "TRANSACAO_APREENSAO") {
+          ensureSpace(LINE_HEIGHT * 6);
+          if (parsed.walletDest) addText("    Carteira destino (institucional): " + parsed.walletDest, 8, false, [0.25, 0.56, 0.88]);
+          if (parsed.walletOrigin) addText("    Carteira origem: " + parsed.walletOrigin, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.amount) addText("    Valor enviado: " + parsed.amount, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.fee) addText("    Taxa paga: " + parsed.fee, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.txHash) addText("    Hash TX: " + parsed.txHash, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.explorerUrl) addText("    Explorer: " + parsed.explorerUrl, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.imageDataUrl) {
+            await embedJpgOnTimeline(parsed.imageDataUrl);
+          }
+        } else if (e.type === "RECUPERACAO_CARTEIRA") {
+          ensureSpace(LINE_HEIGHT * 5);
+          if (parsed.procedureDescription) addText("    Procedimento: " + parsed.procedureDescription, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.brand) addText("    Marca: " + parsed.brand, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.model) addText("    Modelo: " + parsed.model, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.software) addText("    Software/App: " + parsed.software, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.imageDataUrl) {
+            await embedJpgOnTimeline(parsed.imageDataUrl);
+          }
+        } else if (e.type === "ENTREGA") {
+          ensureSpace(LINE_HEIGHT * 6);
+          if (parsed.object) addText("    Objeto: " + parsed.object, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.contentInfo) addText("    Conteúdo e Informações: " + parsed.contentInfo, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.deliveredBy) addText("    Entregue por: " + parsed.deliveredBy, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.receivedBy) addText("    Recebido por: " + parsed.receivedBy, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.fileHashes) {
+            addText("    Hashes dos arquivos:", 8, false, [0.45, 0.5, 0.6]);
+            for (const line of parsed.fileHashes.split("\n")) {
+              if (line.trim()) addText("      " + line.trim(), 7.5, "mono", [0.3, 0.35, 0.4]);
             }
           }
-        }
-        if (dd.signatureDelivered) {
-          const sigCaseId = getSignatureCaseId(e);
-          const dataDelivered = JSON.stringify({
-            caseId: sigCaseId,
-            type: "ENTREGA",
-            object: dd.object,
-            contentInfo: dd.contentInfo,
-            fileHashes: dd.fileHashes,
-            deliveredBy: dd.deliveredBy,
-            receivedBy: dd.receivedBy,
-            role: "deliveredBy"
-          });
-          const verified = await verifyDigitalSignature(dataDelivered, dd.signatureDelivered.signatureHex, dd.signatureDelivered.publicKeyJwk);
-          const status = verified ? "VÁLIDA" : "INVÁLIDA";
-          const impTag = e.originalCaseId ? " [importada]" : "";
-          addText(`    Assinatura Digital (Entregador): [${status}]${impTag} Chave ID: ${dd.signatureDelivered.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
-        }
-        if (dd.signatureReceived) {
-          const sigCaseId = getSignatureCaseId(e);
-          const dataReceived = JSON.stringify({
-            caseId: sigCaseId,
-            type: "ENTREGA",
-            object: dd.object,
-            contentInfo: dd.contentInfo,
-            fileHashes: dd.fileHashes,
-            deliveredBy: dd.deliveredBy,
-            receivedBy: dd.receivedBy,
-            role: "receivedBy"
-          });
-          const verified = await verifyDigitalSignature(dataReceived, dd.signatureReceived.signatureHex, dd.signatureReceived.publicKeyJwk);
-          const status = verified ? "VÁLIDA" : "INVÁLIDA";
-          const impTag = e.originalCaseId ? " [importada]" : "";
-          addText(`    Assinatura Digital (Recebedor): [${status}]${impTag} Chave ID: ${dd.signatureReceived.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
-        }
-        if (dd.notes) addText("    Notas: " + dd.notes, 8, false, [0.45, 0.5, 0.6]);
-        // Embed delivery image if available
-        const delImg = deliveryImages.find(di => di.eventId === e.id);
-        if (delImg) {
-          addText("    Imagem da entrega:", 8, false, [0.45, 0.5, 0.6]);
-          addImage(delImg, `DelImg_${e.id.replace(/[^a-zA-Z0-9]/g, '')}`);
-        }
-      } catch (_) {
-        addText("    [Dados da entrega]", 8, false, [0.45, 0.5, 0.6]);
-      }
-    } else if (e.type === "LOCALIZACAO_OBJETO" && e.detail) {
-      try {
-        const ld = JSON.parse(e.detail);
-        ensureSpace(LINE_HEIGHT * 6);
-        const locTypeMap = {
-          "dispositivo": "Dispositivo",
-          "anotacao": "Anotação",
-          "arquivo": "Arquivo",
-          "arma_fogo": "Arma de fogo",
-          "outro": "Outro"
-        };
-        const typeLabelLoc = locTypeMap[ld.objectType] || ld.objectType || '—';
-        addText("    Tipo de Objeto: " + typeLabelLoc, 8, false, [0.45, 0.5, 0.6]);
-        if (ld.description) addText("    Descrição: " + ld.description, 8, false, [0.45, 0.5, 0.6]);
-        if (ld.locationFound) addText("    Localização quando encontrado: " + ld.locationFound, 8, false, [0.45, 0.5, 0.6]);
-        if (ld.notes) addText("    Notas: " + ld.notes, 8, false, [0.45, 0.5, 0.6]);
-        // Embed location image if available
-        const locImg = locationImages.find(li => li.eventId === e.id);
-        if (locImg) {
-          addText("    Imagem do objeto:", 8, false, [0.45, 0.5, 0.6]);
-          addImage(locImg, `LocImg_${e.id.replace(/[^a-zA-Z0-9]/g, '')}`);
-        }
-      } catch (_) {
-        addText("    [Dados da localização]", 8, false, [0.45, 0.5, 0.6]);
-      }
-    } else if (e.type === "ASSINATURA_RELATORIO" && e.detail) {
-      try {
-        const sd = JSON.parse(e.detail);
-        ensureSpace(LINE_HEIGHT * 5);
-        if (sd.signatureName) addText("    Nome: " + sd.signatureName, 8, false, [0.45, 0.5, 0.6]);
-        if (sd.signatureRole) addText("    Cargo: " + sd.signatureRole, 8, false, [0.45, 0.5, 0.6]);
-        if (sd.signature) {
-          const sigCaseId = getSignatureCaseId(e);
-          const dataSignatory = JSON.stringify({
-            caseId: sigCaseId,
-            type: "ASSINATURA_RELATORIO",
-            signatureName: sd.signatureName,
-            signatureRole: sd.signatureRole
-          });
-          const verified = await verifyDigitalSignature(dataSignatory, sd.signature.signatureHex, sd.signature.publicKeyJwk);
-          const status = verified ? "VÁLIDA" : "INVÁLIDA";
-          const impTag = e.originalCaseId ? " [importada]" : "";
-          addText(`    Assinatura Digital: [${status}]${impTag} Chave ID: ${sd.signature.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
-        }
-        if (sd.notes) addText("    Notas: " + sd.notes, 8, false, [0.45, 0.5, 0.6]);
-      } catch (_) {
-        addText("    [Dados da assinatura]", 8, false, [0.45, 0.5, 0.6]);
-      }
-    } else if (e.detail && e.type !== "SEED_REGISTRADA" && e.type !== "ENTREGA" && e.type !== "LOCALIZACAO_OBJETO" && e.type !== "ASSINATURA_RELATORIO") {
-      let detailText = e.detail;
-      if (e.type === "NOTA" || e.type === "OUTRO") {
-        try {
-          const parsed = JSON.parse(e.detail);
-          detailText = parsed.notes || "";
-        } catch (_) {
-          // Mantém como texto puro se não for JSON válido (retrocompatibilidade)
-        }
-      }
-      if (detailText) {
-        if (detailText.length > 300) detailText = detailText.substring(0, 300) + "...";
-        addText("    Detalhe: " + detailText, 8, false, [0.45, 0.5, 0.6]);
-      }
-      const otherImg = otherImages.find(oi => oi.eventId === e.id);
-      if (otherImg) {
-        addText("    Imagem de evidência:", 8, false, [0.45, 0.5, 0.6]);
-        addImage(otherImg, `OtherImg_${e.id.replace(/[^a-zA-Z0-9]/g, '')}`);
-      }
-    } else if (e.type === "SEED_REGISTRADA") {
-      try {
-        const sd = JSON.parse(e.detail);
-        addText(`    Tipo sensível: ${sd.sensitiveType || "--"}, Modo: ${sd.mode || "--"}`, 8, false, [0.45, 0.5, 0.6]);
-        if (sd.showInReport && sd.valueFragment) {
-          addText(`    Valor/Seed: ${sd.valueFragment}`, 8, true, [0.2, 0.25, 0.3]);
+          if (parsed.signatureDelivered) {
+            const sigCaseId = getSignatureCaseId(e);
+            const dataDelivered = JSON.stringify({
+              caseId: sigCaseId,
+              type: "ENTREGA",
+              object: parsed.object,
+              contentInfo: parsed.contentInfo,
+              fileHashes: parsed.fileHashes,
+              deliveredBy: parsed.deliveredBy,
+              receivedBy: parsed.receivedBy,
+              role: "deliveredBy"
+            });
+            const verified = await verifyDigitalSignature(dataDelivered, parsed.signatureDelivered.signatureHex, parsed.signatureDelivered.publicKeyJwk);
+            const status = verified ? "VÁLIDA" : "INVÁLIDA";
+            const impTag = e.originalCaseId ? " [importada]" : "";
+            addText(`    Assinatura Digital (Entregador): [${status}]${impTag} Chave ID: ${parsed.signatureDelivered.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
+          }
+          if (parsed.signatureReceived) {
+            const sigCaseId = getSignatureCaseId(e);
+            const dataReceived = JSON.stringify({
+              caseId: sigCaseId,
+              type: "ENTREGA",
+              object: parsed.object,
+              contentInfo: parsed.contentInfo,
+              fileHashes: parsed.fileHashes,
+              deliveredBy: parsed.deliveredBy,
+              receivedBy: parsed.receivedBy,
+              role: "receivedBy"
+            });
+            const verified = await verifyDigitalSignature(dataReceived, parsed.signatureReceived.signatureHex, parsed.signatureReceived.publicKeyJwk);
+            const status = verified ? "VÁLIDA" : "INVÁLIDA";
+            const impTag = e.originalCaseId ? " [importada]" : "";
+            addText(`    Assinatura Digital (Recebedor): [${status}]${impTag} Chave ID: ${parsed.signatureReceived.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
+          }
+          if (parsed.imageDataUrl) {
+            await embedJpgOnTimeline(parsed.imageDataUrl);
+          }
+        } else if (e.type === "LOCALIZACAO_OBJETO") {
+          ensureSpace(LINE_HEIGHT * 4);
+          if (parsed.objectType) addText("    Tipo de Objeto: " + parsed.objectType, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.description) addText("    Descrição: " + parsed.description, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.locationFound) addText("    Localização quando encontrado: " + parsed.locationFound, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.imageDataUrl) {
+            await embedJpgOnTimeline(parsed.imageDataUrl);
+          }
+        } else if (e.type === "ASSINATURA_RELATORIO") {
+          ensureSpace(LINE_HEIGHT * 4);
+          if (parsed.signatureName) addText("    Nome: " + parsed.signatureName, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.signatureRole) addText("    Cargo: " + parsed.signatureRole, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.signature) {
+            const sigCaseId = getSignatureCaseId(e);
+            const dataSignatory = JSON.stringify({
+              caseId: sigCaseId,
+              type: "ASSINATURA_RELATORIO",
+              signatureName: parsed.signatureName,
+              signatureRole: parsed.signatureRole
+            });
+            const verified = await verifyDigitalSignature(dataSignatory, parsed.signature.signatureHex, parsed.signature.publicKeyJwk);
+            const status = verified ? "VÁLIDA" : "INVÁLIDA";
+            const impTag = e.originalCaseId ? " [importada]" : "";
+            addText(`    Assinatura Digital: [${status}]${impTag} Chave ID: ${parsed.signature.keyHash.substring(0, 16)}...`, 7.5, "mono", verified ? [0.1, 0.5, 0.2] : [0.8, 0.1, 0.1]);
+          }
+        } else if (e.type === "SEED_REGISTRADA") {
+          addText(`    Tipo sensível: ${parsed.sensitiveType || "--"}, Modo: ${parsed.mode || "--"}`, 8, false, [0.45, 0.5, 0.6]);
+          if (parsed.showInReport && parsed.valueFragment) {
+            addText(`    Valor/Seed: ${parsed.valueFragment}`, 8, true, [0.2, 0.25, 0.3]);
+          } else {
+            addText("    [Valor não exibido no relatório]", 8, false, [0.75, 0.3, 0.3]);
+          }
+          if (parsed.imageDataUrl) {
+            await embedJpgOnTimeline(parsed.imageDataUrl);
+          }
+        } else if (parsed.attachmentId) {
+          addText(`    ID do Anexo: ${parsed.attachmentId}`, 8, false, [0.45, 0.5, 0.6]);
+          addText(`    Hash da Evidência: ${parsed.fileHash}`, 7.5, "mono", [0.45, 0.5, 0.6]);
         } else {
-          addText("    [Valor não exibido no relatório]", 8, false, [0.75, 0.3, 0.3]);
-        }
-        const seedImg = seedImages.find(si => si.eventId === e.id);
-        if (seedImg) {
-          addText("    Imagem de evidência:", 8, false, [0.45, 0.5, 0.6]);
-          addImage(seedImg, `SeedImg_${e.id.replace(/[^a-zA-Z0-9]/g, '')}`);
+          let detailText = parsed.notes || e.detail;
+          if (detailText) {
+            if (detailText.length > 300) detailText = detailText.substring(0, 300) + "...";
+            addText("    Detalhe: " + detailText, 8, false, [0.45, 0.5, 0.6]);
+          }
+          if (parsed.imageDataUrl) {
+            await embedJpgOnTimeline(parsed.imageDataUrl);
+          }
         }
       } catch (_) {
-        addText("    [Dados sensíveis -- não exibidos]", 8, false, [0.75, 0.3, 0.3]);
+        let detailText = e.detail;
+        if (detailText && detailText.length > 300) detailText = detailText.substring(0, 300) + "...";
+        if (detailText) addText("    Detalhe: " + detailText, 8, false, [0.45, 0.5, 0.6]);
       }
     }
     addSpacer(4);
   }
 
+  async function embedJpgOnTimeline(dataUrl) {
+    try {
+      const imgData = await dataUrlToJpegBytes(dataUrl, 500, 400);
+      const embedded = await pdfDoc.embedJpg(imgData.bytes);
+      let w = imgData.width;
+      let h = imgData.height;
+      const scale = Math.min(260 / w, 140 / h, 1);
+      w = Math.floor(w * scale);
+      h = Math.floor(h * scale);
+      ensureSpace(h + 15);
+      page.drawImage(embedded, {
+        x: MARGIN_L + 20,
+        y: curY - h,
+        width: w,
+        height: h
+      });
+      curY -= (h + 10);
+    } catch (err) {
+      console.warn("Could not embed timeline photo:", err);
+    }
+  }
+
   addLine();
   addSpacer(6);
 
-  // Attachments with images
+  // Attachments
   addText("ANEXOS (" + attachments.length + " arquivos)", 11, true, [0.2, 0.25, 0.3]);
   addSpacer(4);
 
@@ -4632,19 +4599,36 @@ async function generatePdf(caseObj, events, attachments) {
     for (const att of attachments) {
       ensureSpace(LINE_HEIGHT * 4);
       addText(`- ${att.fileName}  (${formatBytes(att.sizeBytes)})`, 9, true);
-      addText(`  Algoritmo: SHA-256`, 8, false, [0.45, 0.5, 0.6]);
-      addText(`  Hash: ${att.fileHash}`, 7, "mono", [0.45, 0.5, 0.6]);
-      addText(`  Data: ${formatDateTime(att.createdAt)}  |  Origem: ${att.origin}`, 8, false, [0.45, 0.5, 0.6]);
-      // Embed the image
-      const imgObj = imageObjects.find(io => io.attId === att.id);
-      if (imgObj) {
-        addImage(imgObj, `Img_${att.id.replace(/[^a-zA-Z0-9]/g, '')}`);
+      addText(`  Algoritmo de integridade: SHA-256`, 8, false, [0.45, 0.5, 0.6]);
+      addText(`  Hash original de custódia: ${att.fileHash}`, 7.5, "mono", [0.45, 0.5, 0.6]);
+      addText(`  Data de registro: ${formatDateTime(att.createdAt)}  |  Origem: ${att.origin}  |  Função: ${att.role === "registro" ? "Registro Ilustrativo" : "Evidência Formal"}`, 8, false, [0.45, 0.5, 0.6]);
+
+      if (att.dataBase64 && (att.mimeType.startsWith("image/") || att.role === "registro")) {
+        try {
+          const imgData = await dataUrlToJpegBytes(att.dataBase64, 500, 400);
+          const embedded = await pdfDoc.embedJpg(imgData.bytes);
+          let w = imgData.width;
+          let h = imgData.height;
+          const scale = Math.min(280 / w, 160 / h, 1);
+          w = Math.floor(w * scale);
+          h = Math.floor(h * scale);
+          ensureSpace(h + 15);
+          page.drawImage(embedded, {
+            x: MARGIN_L + 20,
+            y: curY - h,
+            width: w,
+            height: h
+          });
+          curY -= (h + 12);
+        } catch (err) {
+          console.warn("Could not embed attachment photo:", att.fileName, err);
+        }
       }
       addSpacer(6);
     }
   }
 
-  // --- Seção de Assinaturas Física ---
+  // --- Signatures Section ---
   const deliveryEvents = events.filter(e => e.type === "ENTREGA");
   const signatureEvents = events.filter(e => e.type === "ASSINATURA_RELATORIO");
 
@@ -4784,104 +4768,43 @@ async function generatePdf(caseObj, events, attachments) {
   }
   addText("Este procedimento foi estruturado com base nos princípios da ABNT NBR ISO/IEC 27037", 8, false, [0.45, 0.5, 0.6]);
 
-  // Push last page
-  pages.push({ commands: currentPage, images: currentPageImages });
-
-  // ——— Assemble the PDF as binary ———
-
-  const catalogId = addObj("");
-  const pagesId = addObj("");
-  const font1Id = addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-  const font2Id = addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-  const font3Id = addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>");
-
-  const pageObjIds = [];
-  const streamObjIds = [];
-
-  for (const pageData of pages) {
-    const streamContent = pageData.commands.join("\n");
-    const streamBytes = new TextEncoder().encode(streamContent);
-    const streamId = addObj(`<< /Length ${streamBytes.length} >>\nstream\n${streamContent}\nendstream`);
-    streamObjIds.push(streamId);
-    const pageId = addObj("");
-    pageObjIds.push(pageId);
-  }
-
-  objects.find(o => o.id === catalogId).content = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
-  objects.find(o => o.id === pagesId).content = `<< /Type /Pages /Kids [${pageObjIds.map(id => `${id} 0 R`).join(" ")}] /Count ${pageObjIds.length} >>`;
-
-  // Build page objects with image XObject references in Resources
-  for (let i = 0; i < pageObjIds.length; i++) {
-    const pageData = pages[i];
-    let xobjEntries = [];
-    if (pageData.images.length > 0) {
-      xobjEntries = pageData.images.map(im => `/${im.imgName} ${im.imgObjId} 0 R`);
-    }
-    if (logoImgObj) {
-      xobjEntries.push(`/InstitutionLogo ${logoImgObj.objId} 0 R`);
-    }
-    let xobjDict = '';
-    if (xobjEntries.length > 0) {
-      xobjDict = ` /XObject << ${xobjEntries.join(' ')} >>`;
-    }
-    objects.find(o => o.id === pageObjIds[i]).content = `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${streamObjIds[i]} 0 R /Resources << /Font << /F1 ${font1Id} 0 R /F2 ${font2Id} 0 R /F3 ${font3Id} 0 R >>${xobjDict} >> >>`;
-  }
-
-  // Build final binary PDF
-  const encoder = new TextEncoder();
-  const chunks = [];
-  let totalLen = 0;
-
-  function writeStr(s) {
-    const b = encoder.encode(s);
-    chunks.push(b);
-    totalLen += b.length;
-  }
-
-  function writeBytes(b) {
-    chunks.push(b);
-    totalLen += b.length;
-  }
-
-  writeStr("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
-  const offsets = [];
-
-  for (const obj of objects) {
-    offsets.push(totalLen);
-    if (obj.binaryStream) {
-      // Binary object (image)
-      writeStr(`${obj.id} 0 obj\n${obj.binaryStream.header}\nstream\n`);
-      writeBytes(obj.binaryStream.data);
-      writeStr(`\nendstream\nendobj\n`);
-    } else {
-      writeStr(`${obj.id} 0 obj\n${obj.content}\nendobj\n`);
+  // Embed non-image evidence files inside the PDF portfolio structure
+  for (const att of attachments) {
+    if (att.role === "evidencia" && att.dataBlob) {
+      try {
+        const arrayBuffer = await att.dataBlob.arrayBuffer();
+        const fileBytes = new Uint8Array(arrayBuffer);
+        await pdfDoc.attach(fileBytes, att.fileName, {
+          mimeType: att.mimeType,
+          description: `Evidência original - Hash: ${att.fileHash}`,
+          creationDate: new Date(att.createdAt),
+          modificationDate: new Date(att.createdAt)
+        });
+      } catch (err) {
+        console.warn("Could not embed attachment file in PDF:", att.fileName, err);
+      }
     }
   }
 
-  const xrefOffset = totalLen;
-  writeStr("xref\n");
-  writeStr(`0 ${objects.length + 1}\n`);
-  writeStr("0000000000 65535 f \n");
-  for (const offset of offsets) {
-    writeStr(offset.toString().padStart(10, "0") + " 00000 n \n");
+  // Merge pages of attached PDF evidence files to the end of the report document
+  for (const att of attachments) {
+    if (att.role === "evidencia" && att.mimeType === "application/pdf" && att.dataBlob) {
+      try {
+        const arrayBuffer = await att.dataBlob.arrayBuffer();
+        const attachedPdf = await PDFDocument.load(new Uint8Array(arrayBuffer));
+        const copiedPages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+        copiedPages.forEach((pg) => {
+          pdfDoc.addPage(pg);
+        });
+      } catch (err) {
+        console.warn("Could not merge pages of attached PDF:", att.fileName, err);
+      }
+    }
   }
 
-  writeStr("trailer\n");
-  writeStr(`<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\n`);
-  writeStr("startxref\n");
-  writeStr(xrefOffset + "\n");
-  writeStr("%%EOF\n");
-
-  // Concatenate all chunks into a single Uint8Array
-  const result = new Uint8Array(totalLen);
-  let pos = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, pos);
-    pos += chunk.length;
-  }
-
-  return result;
+  return await pdfDoc.save();
 }
+
 
 /* ========================================
    MODALS
