@@ -1,83 +1,295 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <!-- Background Gradient -->
-    <linearGradient id="bgGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0a0b0e" />
-      <stop offset="100%" stop-color="#14171f" />
+    <!-- Background Space Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080a0f" />
+      <stop offset="50%" stop-color="#0e111a" />
+      <stop offset="100%" stop-color="#151b27" />
     </linearGradient>
-    
-    <!-- Blockchain Fire Gradient -->
-    <linearGradient id="blockFire" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#ea580c" />
-      <stop offset="100%" stop-color="#fdba74" />
+
+    <!-- Glowing Cyber Circle Gradient -->
+    <linearGradient id="circleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc" />
+      <stop offset="30%" stop-color="#8b5cf6" />
+      <stop offset="70%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#22d3ee" />
     </linearGradient>
+
+    <!-- Purple/Pink Wing Gradients (Left Wing) -->
+    <linearGradient id="purpleGrad1" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#3b0764" />
+      <stop offset="50%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+    <linearGradient id="purpleGrad2" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#4c1d95" />
+      <stop offset="60%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#e9d5ff" />
+    </linearGradient>
+    <linearGradient id="magentaGrad" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#9d174d" />
+      <stop offset="100%" stop-color="#f472b6" />
+    </linearGradient>
+
+    <!-- Blue/Cyan Wing Gradients (Right Wing) -->
+    <linearGradient id="blueGrad1" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#172554" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#60a5fa" />
+    </linearGradient>
+    <linearGradient id="blueGrad2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="60%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#dbeafe" />
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0891b2" />
+      <stop offset="100%" stop-color="#22d3ee" />
+    </linearGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
     
-    <!-- Link Lines Glow -->
-    <filter id="glow1" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur stdDeviation="8" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    <!-- Intense Glow Filter for Core/Beams -->
+    <filter id="intenseGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur1" />
+      <feGaussianBlur stdDeviation="3" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
     </filter>
   </defs>
-  
-  <!-- Icon Base -->
-  <rect width="512" height="512" rx="128" fill="url(#bgGrad1)" stroke="#222733" stroke-width="4" />
-  
-  <!-- Symmetrical Blockchain Node Connections in Background -->
-  <g stroke="#ffffff" stroke-opacity="0.08" stroke-width="3" fill="none">
-    <circle cx="256" cy="180" r="6" fill="#ffffff" fill-opacity="0.1" />
-    <circle cx="156" cy="230" r="6" fill="#ffffff" fill-opacity="0.1" />
-    <circle cx="356" cy="230" r="6" fill="#ffffff" fill-opacity="0.1" />
-    <circle cx="206" cy="350" r="6" fill="#ffffff" fill-opacity="0.1" />
-    <circle cx="306" cy="350" r="6" fill="#ffffff" fill-opacity="0.1" />
-    <line x1="256" y1="180" x2="156" y2="230" />
-    <line x1="256" y1="180" x2="356" y2="230" />
-    <line x1="156" y1="230" x2="206" y2="350" />
-    <line x1="356" y1="230" x2="306" y2="350" />
-    <line x1="206" y1="350" x2="306" y2="350" />
+
+  <!-- Background Rect -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" stroke="#1e2330" stroke-width="4" />
+
+  <!-- BACKGROUND CYBERNETIC GRID LINES (Subtle Tech Grid) -->
+  <g stroke="#ffffff" stroke-opacity="0.03" stroke-width="1">
+    <line x1="64" y1="0" x2="64" y2="512" />
+    <line x1="128" y1="0" x2="128" y2="512" />
+    <line x1="192" y1="0" x2="192" y2="512" />
+    <line x1="256" y1="0" x2="256" y2="512" />
+    <line x1="320" y1="0" x2="320" y2="512" />
+    <line x1="384" y1="0" x2="384" y2="512" />
+    <line x1="448" y1="0" x2="448" y2="512" />
+    
+    <line x1="0" y1="64" x2="512" y2="64" />
+    <line x1="0" y1="128" x2="512" y2="128" />
+    <line x1="0" y1="192" x2="512" y2="192" />
+    <line x1="0" y1="256" x2="512" y2="256" />
+    <line x1="0" y1="320" x2="512" y2="320" />
+    <line x1="0" y1="384" x2="512" y2="384" />
+    <line x1="0" y1="448" x2="512" y2="448" />
+
+    <!-- Isometric Lines -->
+    <line x1="0" y1="0" x2="512" y2="512" />
+    <line x1="512" y1="0" x2="0" y2="512" />
   </g>
-  
-  <!-- Blockchain Phoenix (Body & Wings made of connected 3D blocks) -->
-  <g filter="url(#glow1)" transform="translate(0, 10)">
-    <!-- Central Block (Body) -->
-    <path d="M 256 220 L 296 240 L 296 280 L 256 300 L 216 280 L 216 240 Z" fill="url(#blockFire)" />
-    <!-- Center Block Top Cap lines for 3D look -->
-    <path d="M 256 220 L 216 240 L 256 260 L 296 240 Z" fill="#ffedd5" opacity="0.3" />
-    <path d="M 256 260 L 256 300" fill="none" stroke="#000" stroke-width="1.5" opacity="0.2" />
+
+  <!-- CYBERNETIC DIAL / OUTER CIRCLE FRAME -->
+  <g filter="url(#neonGlow)">
+    <!-- Sub-track shadow -->
+    <circle cx="256" cy="256" r="195" stroke="#7c3aed" stroke-opacity="0.15" stroke-width="1.5" fill="none" />
+    <!-- Main Outer Dashed Ring -->
+    <circle cx="256" cy="256" r="185" stroke="url(#circleGrad)" stroke-width="3" stroke-dasharray="160 12 30 12 80 12" fill="none" />
+    <!-- Inner Fine Track -->
+    <circle cx="256" cy="256" r="172" stroke="#22d3ee" stroke-opacity="0.25" stroke-width="1" fill="none" />
     
-    <!-- Top Block (Head/Crest) -->
-    <path d="M 256 120 L 280 132 L 280 156 L 256 168 L 232 156 L 232 132 Z" fill="url(#blockFire)" />
-    <path d="M 256 120 L 232 132 L 256 144 L 280 132 Z" fill="#ffedd5" opacity="0.3" />
-    <!-- Connector Link (Neck) -->
-    <line x1="256" y1="168" x2="256" y2="220" stroke="#fdba74" stroke-width="8" stroke-linecap="round" />
+    <!-- Dial Circuit Traces & Nodes -->
+    <!-- Top Node -->
+    <line x1="256" y1="71" x2="256" y2="50" stroke="#c084fc" stroke-width="2" />
+    <circle cx="256" cy="50" r="4.5" fill="#e9d5ff" />
+    <!-- Bottom Node / Triangle Pointer -->
+    <line x1="256" y1="441" x2="256" y2="462" stroke="#22d3ee" stroke-width="2" />
+    <circle cx="256" cy="462" r="4.5" fill="#cffafe" />
+    <polygon points="256,432 248,418 264,418" fill="#22d3ee" />
     
-    <!-- Left Wing Block 1 -->
-    <path d="M 176 170 L 206 185 L 206 215 L 176 230 L 146 215 L 146 185 Z" fill="url(#blockFire)" opacity="0.9" />
-    <path d="M 176 170 L 146 185 L 176 200 L 206 185 Z" fill="#ffedd5" opacity="0.3" />
-    <!-- Connector Link (Body to Left Wing 1) -->
-    <line x1="216" y1="240" x2="206" y2="215" stroke="#fdba74" stroke-width="6" stroke-linecap="round" />
+    <!-- Left Node -->
+    <line x1="71" y1="256" x2="55" y2="256" stroke="#8b5cf6" stroke-width="2" />
+    <circle cx="55" cy="256" r="4" fill="#a78bfa" />
+    <!-- Right Node -->
+    <line x1="441" y1="256" x2="457" y2="256" stroke="#3b82f6" stroke-width="2" />
+    <circle cx="457" cy="256" r="4" fill="#93c5fd" />
+
+    <!-- Diagonal Node Branches -->
+    <path d="M 120 120 L 105 105 L 85 105" stroke="#7c3aed" stroke-width="1.5" fill="none" />
+    <circle cx="85" cy="105" r="3.5" fill="#c084fc" />
+
+    <path d="M 392 120 L 407 105 L 427 105" stroke="#3b82f6" stroke-width="1.5" fill="none" />
+    <circle cx="427" cy="105" r="3.5" fill="#93c5fd" />
+
+    <path d="M 120 392 L 105 407 L 85 407" stroke="#db2777" stroke-width="1.5" fill="none" />
+    <circle cx="85" cy="407" r="3.5" fill="#f472b6" />
+
+    <path d="M 392 392 L 407 407 L 427 407" stroke="#22d3ee" stroke-width="1.5" fill="none" />
+    <circle cx="427" cy="407" r="3.5" fill="#cffafe" />
+  </g>
+
+  <!-- PHOENIX BODY & WINGS -->
+  <g transform="translate(0, 10)">
+    <!-- TAIL FEATHERS (Beautiful sweeping fire curves on left) -->
+    <g filter="url(#neonGlow)">
+      <!-- Left Outer Tail -->
+      <path d="M 230 330 Q 180 340 140 280 Q 110 230 130 200 Q 140 220 135 250 Q 145 285 200 310 Z" fill="url(#purpleGrad1)" opacity="0.8" />
+      <path d="M 220 350 Q 170 390 115 330 Q 95 270 120 250 Q 125 270 122 300 Q 135 340 190 350 Z" fill="url(#magentaGrad)" opacity="0.75" />
+      <!-- Center Main Tail -->
+      <path d="M 256 345 Q 210 430 130 400 Q 100 370 115 340 Q 125 360 145 375 Q 210 390 245 350 Z" fill="url(#purpleGrad2)" />
+      <path d="M 256 345 Q 230 440 160 440 Q 130 420 145 390 Q 155 410 180 415 Q 230 410 250 360 Z" fill="url(#magentaGrad)" opacity="0.9" />
+      <!-- Right Tail Stabilizer (small) -->
+      <path d="M 270 335 Q 295 380 325 380 Q 305 380 280 345 Z" fill="url(#blueGrad1)" opacity="0.8" />
+    </g>
+
+    <!-- LEFT WING PANELS (Faceted low-poly geometry - Purple/Pink) -->
+    <g filter="url(#neonGlow)">
+      <!-- Layer 1 (Top/Back) -->
+      <polygon points="245,215 130,85 155,75 256,185" fill="url(#purpleGrad1)" />
+      <!-- Layer 2 -->
+      <polygon points="230,225 110,115 135,105 242,195" fill="url(#purpleGrad2)" />
+      <!-- Layer 3 -->
+      <polygon points="215,235 95,155 120,145 228,208" fill="url(#purpleGrad1)" />
+      <!-- Layer 4 -->
+      <polygon points="200,248 100,200 122,190 215,225" fill="url(#magentaGrad)" />
+      <!-- Layer 5 (Bottom) -->
+      <polygon points="185,260 120,240 140,230 200,245" fill="#db2777" />
+      
+      <!-- Inner wing mechanical filler facets -->
+      <polygon points="245,215 200,248 215,225" fill="#4c1d95" opacity="0.6" />
+      <polygon points="230,225 185,260 200,245" fill="#3b0764" opacity="0.7" />
+    </g>
+
+    <!-- RIGHT WING PANELS (Faceted low-poly geometry - Blue/Cyan) -->
+    <g filter="url(#neonGlow)">
+      <!-- Layer 1 (Top/Back) -->
+      <polygon points="267,215 382,85 357,75 256,185" fill="url(#blueGrad1)" />
+      <!-- Layer 2 -->
+      <polygon points="282,225 402,115 377,105 270,195" fill="url(#blueGrad2)" />
+      <!-- Layer 3 -->
+      <polygon points="297,235 417,155 392,145 284,208" fill="url(#blueGrad1)" />
+      <!-- Layer 4 -->
+      <polygon points="312,248 412,200 390,190 297,225" fill="url(#cyanGrad)" />
+      <!-- Layer 5 (Bottom) -->
+      <polygon points="327,260 392,240 372,230 312,245" fill="#22d3ee" />
+
+      <!-- Inner wing mechanical filler facets -->
+      <polygon points="267,215 312,248 297,225" fill="#1e3a8a" opacity="0.6" />
+      <polygon points="282,225 327,260 312,245" fill="#172554" opacity="0.7" />
+    </g>
+
+    <!-- CYBER CIRCUIT LINES ON WINGS (Tech Overlay) -->
+    <!-- Left Wing Circuit Traces (Neon Violet/Pink) -->
+    <g stroke="#f472b6" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#intenseGlow)">
+      <path d="M 220,210 L 150,135 L 125,135" />
+      <path d="M 205,230 L 140,165 L 110,165" />
+      <path d="M 180,245 L 135,200 L 115,200" />
+      <!-- Branching -->
+      <path d="M 150,135 L 135,120 L 135,110" />
+      <path d="M 140,165 L 125,150 L 100,150" />
+    </g>
+    <!-- Left Wing Nodes -->
+    <g fill="#e9d5ff" filter="url(#neonGlow)">
+      <circle cx="125" cy="135" r="4.5" />
+      <circle cx="110" cy="165" r="4.5" />
+      <circle cx="115" cy="200" r="4.5" />
+      <circle cx="135" cy="110" r="4" />
+      <circle cx="100" cy="150" r="4" />
+    </g>
+
+    <!-- Right Wing Circuit Traces (Neon Cyan/Blue) -->
+    <g stroke="#22d3ee" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#intenseGlow)">
+      <path d="M 292,210 L 362,135 L 387,135" />
+      <path d="M 307,230 L 372,165 L 402,165" />
+      <path d="M 332,245 L 377,200 L 397,200" />
+      <!-- Branching -->
+      <path d="M 362,135 L 377,120 L 377,110" />
+      <path d="M 372,165 L 387,150 L 412,150" />
+    </g>
+    <!-- Right Wing Nodes -->
+    <g fill="#cffafe" filter="url(#neonGlow)">
+      <circle cx="387" cy="135" r="4.5" />
+      <circle cx="402" cy="165" r="4.5" />
+      <circle cx="397" cy="200" r="4.5" />
+      <circle cx="377" cy="110" r="4" />
+      <circle cx="412" cy="150" r="4" />
+    </g>
+
+    <!-- PHOENIX BODY CENTRAL ARMOR -->
+    <g filter="url(#neonGlow)">
+      <!-- Left Body Plate -->
+      <polygon points="256,200 230,225 256,260" fill="#6d28d9" />
+      <polygon points="256,260 220,290 256,315" fill="#4c1d95" />
+      <polygon points="256,315 235,335 256,345" fill="#7c3aed" />
+
+      <!-- Right Body Plate -->
+      <polygon points="256,200 282,225 256,260" fill="#1d4ed8" />
+      <polygon points="256,260 292,290 256,315" fill="#1e3a8a" />
+      <polygon points="256,315 277,335 256,345" fill="#3b82f6" />
+
+      <!-- Chest Core Housing -->
+      <polygon points="256,220 240,240 256,260 272,240" fill="#0f172a" stroke="#8b5cf6" stroke-width="2" />
+    </g>
+
+    <!-- GLOWING CHEST CORE (Cyber Heart) -->
+    <polygon points="256,225 245,240 256,255 267,240" fill="#ffffff" filter="url(#intenseGlow)" />
+    <polygon points="256,228 248,240 256,252 264,240" fill="#22d3ee" />
+
+    <!-- FEATHERED CREST / CROWN (Flowing Leftward/Backward from Head) -->
+    <g filter="url(#neonGlow)">
+      <path d="M 252,175 Q 235,150 205,145 Q 225,160 245,170 Z" fill="url(#purpleGrad1)" />
+      <path d="M 256,165 Q 240,138 215,130 Q 232,148 248,160 Z" fill="url(#purpleGrad2)" />
+      <path d="M 262,158 Q 250,125 225,120 Q 240,138 252,152 Z" fill="url(#magentaGrad)" />
+      <path d="M 268,155 Q 260,118 238,112 Q 250,130 258,148 Z" fill="#db2777" />
+    </g>
+
+    <!-- HEAD & BEAK (Facing Right) -->
+    <g filter="url(#neonGlow)">
+      <!-- Head Base -->
+      <polygon points="252,175 272,175 285,188 272,198 252,194" fill="#1e3a8a" />
+      <polygon points="252,175 252,194 242,185" fill="#5b21b6" />
+      <!-- Sharp Crest Edge -->
+      <polygon points="272,175 285,188 270,188" fill="#3b82f6" />
+      <!-- Beak (Cyan/Steel Blue pointing right) -->
+      <polygon points="285,188 308,193 283,201" fill="#cffafe" />
+      <polygon points="285,188 283,201 272,198" fill="#1d4ed8" />
+      <!-- Glowing Eye (Sharp Cyan line) -->
+      <polygon points="272,183 282,187 274,188" fill="#ffffff" filter="url(#intenseGlow)" />
+      <polygon points="273,184 280,187 275,188" fill="#22d3ee" />
+    </g>
+
+    <!-- CYBERNETIC TALONS (Sharp neon claws at bottom) -->
+    <!-- Left Leg & Talon -->
+    <g stroke="#f472b6" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#intenseGlow)">
+      <path d="M 235,315 L 225,355 L 210,365" />
+      <path d="M 225,355 L 225,372" />
+      <path d="M 225,355 L 238,368" />
+    </g>
+    <circle cx="225" cy="355" r="3" fill="#ffffff" />
     
-    <!-- Left Wing Block 2 (Outer/Lower) -->
-    <path d="M 116 230 L 140 242 L 140 266 L 116 278 L 92 266 L 92 242 Z" fill="url(#blockFire)" opacity="0.8" />
-    <path d="M 116 230 L 92 242 L 116 254 L 140 242 Z" fill="#ffedd5" opacity="0.3" />
-    <!-- Connector Link (Wing 1 to Wing 2) -->
-    <line x1="146" y1="215" x2="140" y2="242" stroke="#fdba74" stroke-width="5" stroke-linecap="round" />
+    <!-- Right Leg & Talon -->
+    <g stroke="#22d3ee" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#intenseGlow)">
+      <path d="M 277,315 L 287,355 L 302,365" />
+      <path d="M 287,355 L 287,372" />
+      <path d="M 287,355 L 274,368" />
+    </g>
+    <circle cx="287" cy="355" r="3" fill="#ffffff" />
+
+    <!-- FLOATING TECH PIXELS / HEXAGONS -->
+    <!-- Floating Hexagons on the Right -->
+    <polygon points="340,300 348,295 356,300 356,310 348,315 340,310" fill="#22d3ee" fill-opacity="0.25" stroke="#22d3ee" stroke-width="1" filter="url(#neonGlow)" />
+    <polygon points="355,275 360,272 365,275 365,281 360,284 355,281" fill="#3b82f6" fill-opacity="0.2" stroke="#3b82f6" stroke-width="0.8" />
     
-    <!-- Right Wing Block 1 -->
-    <path d="M 336 170 L 366 185 L 366 215 L 336 230 L 306 215 L 306 185 Z" fill="url(#blockFire)" opacity="0.9" />
-    <path d="M 336 170 L 306 185 L 336 200 L 366 185 Z" fill="#ffedd5" opacity="0.3" />
-    <!-- Connector Link (Body to Right Wing 1) -->
-    <line x1="296" y1="240" x2="306" y2="215" stroke="#fdba74" stroke-width="6" stroke-linecap="round" />
-    
-    <!-- Right Wing Block 2 (Outer/Lower) -->
-    <path d="M 396 230 L 420 242 L 420 266 L 396 278 L 372 266 L 372 242 Z" fill="url(#blockFire)" opacity="0.8" />
-    <path d="M 396 230 L 372 242 L 396 254 L 420 242 Z" fill="#ffedd5" opacity="0.3" />
-    <!-- Connector Link (Wing 1 to Wing 2) -->
-    <line x1="326" y1="215" x2="372" y2="242" stroke="#fdba74" stroke-width="5" stroke-linecap="round" />
-    
-    <!-- Tail Block (Chain link downward) -->
-    <path d="M 256 325 L 280 337 L 280 361 L 256 373 L 232 361 L 232 337 Z" fill="url(#blockFire)" opacity="0.9" />
-    <path d="M 256 325 L 232 337 L 256 349 L 280 337 Z" fill="#ffedd5" opacity="0.3" />
-    <!-- Connector Link (Body to Tail) -->
-    <line x1="256" y1="300" x2="256" y2="325" stroke="#fdba74" stroke-width="8" stroke-linecap="round" />
+    <!-- Small Square Particles -->
+    <rect x="150" y="360" width="8" height="8" fill="#f472b6" transform="rotate(15 154 364)" />
+    <rect x="180" y="390" width="6" height="6" fill="#a78bfa" transform="rotate(-30 183 393)" />
+    <rect x="295" y="380" width="7" height="7" fill="#60a5fa" transform="rotate(45 298 383)" />
+    <rect x="320" y="340" width="6" height="6" fill="#22d3ee" transform="rotate(20 323 343)" />
+    <rect x="110" y="310" width="9" height="9" fill="#db2777" transform="rotate(10 114 314)" />
   </g>
 </svg>
