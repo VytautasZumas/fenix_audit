@@ -1125,8 +1125,21 @@ a { color: var(--accent-amber); text-decoration: none; }
           <label class="form-label">Confirme o PIN</label>
           <input id="pinSetup2" type="password" inputmode="numeric" class="form-input form-input-pin" maxlength="8" placeholder="••••" autocomplete="off">
         </div>
-        <button class="btn btn-primary btn-block" onclick="handleSetPin()">Definir PIN</button>
-        <p class="form-hint mt-8 text-center">Mínimo 4 dígitos. PIN armazenado como hash local.</p>
+        <div class="form-group">
+          <label class="form-label">Pergunta de Segurança (Recuperação)</label>
+          <select id="pinSetupQuestion" class="form-select">
+            <option value="1">Qual o nome do seu primeiro animal de estimação?</option>
+            <option value="2">Qual o nome da primeira escola que você frequentou?</option>
+            <option value="3">Em que cidade seus pais se conheceram?</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Resposta de Segurança</label>
+          <input id="pinSetupAnswer" type="text" class="form-input" placeholder="Sua resposta secreta" autocomplete="off">
+          <p class="form-hint">Usada para recuperar o acesso caso você esqueça o PIN. A resposta será gravada apenas como hash.</p>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="handleSetPin()">Definir PIN e Pergunta</button>
+        <p class="form-hint mt-8 text-center">Mínimo 4 dígitos. PIN e resposta armazenados como hash local.</p>
       </div>
 
       <!-- Formulário: desbloquear -->
@@ -1137,6 +1150,24 @@ a { color: var(--accent-amber); text-decoration: none; }
                  onkeydown="if(event.key==='Enter')handleUnlock()">
         </div>
         <button class="btn btn-primary btn-block" onclick="handleUnlock()">Desbloquear</button>
+        <p class="text-center mt-12" id="forgotPinLink" style="display:none;">
+          <a href="#" onclick="showRecoveryForm(); event.preventDefault();" style="font-size:0.85rem; color:var(--text-secondary);">Esqueci meu PIN</a>
+        </p>
+      </div>
+
+      <!-- Formulário: recuperar acesso -->
+      <div id="pinRecoveryForm" style="display:none;">
+        <div class="form-group" style="text-align: left;">
+          <label class="form-label">Pergunta de Segurança</label>
+          <div id="pinRecoveryQuestionDisplay" style="font-size: 0.92rem; color: var(--text-primary); margin-bottom: 12px; padding: 12px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border-primary);">—</div>
+        </div>
+        <div class="form-group" style="text-align: left;">
+          <label class="form-label">Sua Resposta</label>
+          <input id="pinRecoveryAnswer" type="text" class="form-input" placeholder="Digite sua resposta" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')handleVerifyRecovery()">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="handleVerifyRecovery()">Verificar Resposta</button>
+        <p class="text-center mt-12"><a href="#" onclick="showUnlockForm(); event.preventDefault();" style="font-size:0.85rem; color:var(--text-secondary);">Voltar para Login</a></p>
       </div>
     </div>
   </div>
@@ -1154,6 +1185,26 @@ a { color: var(--accent-amber); text-decoration: none; }
         </div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="handleLock()">🔒 Trancar</button>
+    </div>
+
+    <!-- Banner Informativo Forense -->
+    <div id="onboardingBanner" class="card" style="border-left: 4px solid var(--accent-purple); padding: 18px; margin-bottom: 20px; position: relative;">
+      <button onclick="dismissOnboardingBanner()" style="position: absolute; top: 12px; right: 12px; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.3rem; line-height: 1;">&times;</button>
+      <div style="display: flex; gap: 12px; align-items: flex-start;">
+        <span style="font-size: 1.5rem; line-height: 1.2;">🛡️</span>
+        <div>
+          <h4 style="font-size: 0.95rem; margin-bottom: 6px; color: var(--accent-purple); font-weight: 600;">Sobre a Fênix Log</h4>
+          <p style="font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); text-align: justify; margin: 0;">
+            A <strong>Fênix Log</strong> é um aplicativo forense local e de código aberto desenvolvido para registrar de forma imutável a cadeia de custódia e a integridade de evidências digitais (como sementes de recuperação de criptoativos, transações de apreensão e entrega de dispositivos).
+          </p>
+          <p style="font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); text-align: justify; margin: 8px 0 0 0;">
+            Operando sob a filosofia <strong>zero-telemetry (zero telemetria)</strong>, o sistema roda 100% no seu navegador, sem enviar quaisquer dados para servidores externos ou bancos de dados em nuvem, assegurando confidencialidade absoluta.
+          </p>
+          <p style="font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary); text-align: justify; margin: 8px 0 0 0;">
+            Com recursos avançados de criptografia local de chave pública/privada (<strong>ECDSA P-256</strong> e <strong>AES-GCM</strong> baseados no número de telefone do operador), a ferramenta permite que signatários assinem digitalmente os eventos em tempo real, gerando um relatório em PDF auditável e padronizado que calcula e exibe os hashes <strong>SHA-256</strong> individuais de cada registro, imagem e arquivo anexado, garantindo a rastreabilidade e a não-violação do processo investigativo.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Configuração da Instituição -->
@@ -1211,7 +1262,10 @@ a { color: var(--accent-amber); text-decoration: none; }
     </div>
 
     <div class="detail-header">
-      <button class="detail-back" onclick="showCaseList()">← Voltar para casos</button>
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <button class="detail-back" onclick="showCaseList()" style="margin-bottom: 0; padding: 0;">← Voltar para casos</button>
+        <button class="btn btn-danger btn-sm" onclick="handleDeleteCase(currentCaseId)">🗑️ Excluir Caso</button>
+      </div>
       <div id="detailHeaderInfo"></div>
     </div>
 
@@ -1509,6 +1563,7 @@ a { color: var(--accent-amber); text-decoration: none; }
           <option value="anotacao">Anotação</option>
           <option value="arquivo">Arquivo</option>
           <option value="arma_fogo">Arma de fogo</option>
+          <option value="dinheiro">Dinheiro em espécie</option>
           <option value="outro">Outro</option>
         </select>
       </div>
@@ -1736,7 +1791,7 @@ async function loadStateFromDb() {
       req.onsuccess = function(e) {
         const rec = e.target.result;
         if (!rec) {
-          resolve({ pinHash: null, cases: [], eventsByCase: {}, attachmentsByCase: {} });
+          resolve({ pinHash: null, recoveryQuestionIndex: null, recoveryAnswerHash: null, hideOnboarding: false, cases: [], eventsByCase: {}, attachmentsByCase: {} });
         } else {
           const attachmentsByCase = rec.attachmentsByCase || {};
           // Limpa dataBlob corrompidos (não Blobs/Files) das sessões anteriores
@@ -1751,6 +1806,9 @@ async function loadStateFromDb() {
           }
           resolve({
             pinHash: rec.pinHash || null,
+            recoveryQuestionIndex: rec.recoveryQuestionIndex || null,
+            recoveryAnswerHash: rec.recoveryAnswerHash || null,
+            hideOnboarding: rec.hideOnboarding || false,
             cases: Array.isArray(rec.cases) ? rec.cases : [],
             eventsByCase: rec.eventsByCase || {},
             attachmentsByCase: attachmentsByCase
@@ -1761,7 +1819,7 @@ async function loadStateFromDb() {
     });
   } catch (e) {
     console.error("Erro ao carregar estado do IndexedDB:", e);
-    return { pinHash: null, cases: [], eventsByCase: {}, attachmentsByCase: {} };
+    return { pinHash: null, recoveryQuestionIndex: null, recoveryAnswerHash: null, hideOnboarding: false, cases: [], eventsByCase: {}, attachmentsByCase: {} };
   }
 }
 
@@ -2052,6 +2110,17 @@ async function hashPin(pin) {
   return await computeSha256Hex("fnix-pin:" + pin);
 }
 
+function normalizeText(str) {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "")      // keep only letters, numbers and spaces
+    .replace(/\s+/g, " ")            // collapse spaces
+    .trim();
+}
+
 /* ========================================
    PIN
    ======================================== */
@@ -2084,17 +2153,29 @@ function renderUnlockScreen() {
   showSection("sectionUnlock");
   const setupForm = document.getElementById("pinSetupForm");
   const unlockForm = document.getElementById("pinUnlockForm");
+  const recoveryForm = document.getElementById("pinRecoveryForm");
   const errorEl = document.getElementById("unlockError");
   errorEl.style.display = "none";
+  if (recoveryForm) recoveryForm.style.display = "none";
 
   if (isPinConfigured()) {
     setupForm.style.display = "none";
     unlockForm.style.display = "block";
-    setTimeout(() => document.getElementById("pinInput").focus(), 100);
+    const forgotLink = document.getElementById("forgotPinLink");
+    if (forgotLink) {
+      forgotLink.style.display = appState.recoveryAnswerHash ? "block" : "none";
+    }
+    setTimeout(() => {
+      const pinInput = document.getElementById("pinInput");
+      if (pinInput) pinInput.focus();
+    }, 100);
   } else {
     setupForm.style.display = "block";
     unlockForm.style.display = "none";
-    setTimeout(() => document.getElementById("pinSetup1").focus(), 100);
+    setTimeout(() => {
+      const pinSetup1 = document.getElementById("pinSetup1");
+      if (pinSetup1) pinSetup1.focus();
+    }, 100);
   }
 }
 
@@ -2107,6 +2188,9 @@ function showUnlockError(msg) {
 async function handleSetPin() {
   const p1 = document.getElementById("pinSetup1").value.trim();
   const p2 = document.getElementById("pinSetup2").value.trim();
+  const qIdx = document.getElementById("pinSetupQuestion").value;
+  const answer = document.getElementById("pinSetupAnswer").value.trim();
+
   if (!p1 || p1.length < 4) {
     showUnlockError("O PIN deve ter pelo menos 4 caracteres.");
     return;
@@ -2115,9 +2199,21 @@ async function handleSetPin() {
     showUnlockError("Os PINs não coincidem.");
     return;
   }
+  if (!answer) {
+    showUnlockError("Preencha a resposta de segurança.");
+    return;
+  }
+
   await setNewPin(p1);
+  appState.recoveryQuestionIndex = qIdx;
+  const normalized = normalizeText(answer);
+  appState.recoveryAnswerHash = await computeSha256Hex("fnix-recovery:" + normalized);
+  await saveStateToDb();
+
   document.getElementById("pinSetup1").value = "";
   document.getElementById("pinSetup2").value = "";
+  document.getElementById("pinSetupAnswer").value = "";
+
   showToast("PIN configurado com sucesso!", "success");
   showCaseList();
 }
@@ -2146,8 +2242,128 @@ function handleLock() {
 function showCaseList() {
   currentCaseId = null;
   showSection("sectionCaseList");
+
+  const banner = document.getElementById("onboardingBanner");
+  if (banner) {
+    banner.style.display = appState.hideOnboarding ? "none" : "block";
+  }
+
   renderInstitutionConfig();
   renderCaseList();
+}
+
+function dismissOnboardingBanner() {
+  const banner = document.getElementById("onboardingBanner");
+  if (banner) banner.style.display = "none";
+  appState.hideOnboarding = true;
+  saveStateToDb();
+}
+
+function showRecoveryForm() {
+  const pinInput = document.getElementById("pinInput");
+  if (pinInput) pinInput.value = "";
+  
+  const unlockForm = document.getElementById("pinUnlockForm");
+  const recoveryForm = document.getElementById("pinRecoveryForm");
+  const errorEl = document.getElementById("unlockError");
+  if (errorEl) errorEl.style.display = "none";
+  
+  if (unlockForm) unlockForm.style.display = "none";
+  if (recoveryForm) recoveryForm.style.display = "block";
+  
+  const qIdx = appState.recoveryQuestionIndex || "1";
+  const questions = {
+    "1": "Qual o nome do seu primeiro animal de estimação?",
+    "2": "Qual o nome da primeira escola que você frequentou?",
+    "3": "Em que cidade seus pais se conheceram?"
+  };
+  const qText = questions[qIdx] || questions["1"];
+  const qDisplay = document.getElementById("pinRecoveryQuestionDisplay");
+  if (qDisplay) qDisplay.textContent = qText;
+  
+  setTimeout(() => {
+    const recoveryInput = document.getElementById("pinRecoveryAnswer");
+    if (recoveryInput) {
+      recoveryInput.value = "";
+      recoveryInput.focus();
+    }
+  }, 100);
+}
+
+function showUnlockForm() {
+  const recoveryForm = document.getElementById("pinRecoveryForm");
+  const unlockForm = document.getElementById("pinUnlockForm");
+  const errorEl = document.getElementById("unlockError");
+  if (errorEl) errorEl.style.display = "none";
+  
+  if (recoveryForm) recoveryForm.style.display = "none";
+  if (unlockForm) unlockForm.style.display = "block";
+  
+  setTimeout(() => {
+    const pinInput = document.getElementById("pinInput");
+    if (pinInput) {
+      pinInput.value = "";
+      pinInput.focus();
+    }
+  }, 100);
+}
+
+async function handleVerifyRecovery() {
+  const ansInput = document.getElementById("pinRecoveryAnswer");
+  const ansVal = ansInput ? ansInput.value.trim() : "";
+  if (!ansVal) {
+    showUnlockError("Por favor, preencha a resposta de segurança.");
+    return;
+  }
+  
+  const normalized = normalizeText(ansVal);
+  const hash = await computeSha256Hex("fnix-recovery:" + normalized);
+  
+  if (hash === appState.recoveryAnswerHash) {
+    const recoveryForm = document.getElementById("pinRecoveryForm");
+    const setupForm = document.getElementById("pinSetupForm");
+    const errorEl = document.getElementById("unlockError");
+    
+    if (errorEl) errorEl.style.display = "none";
+    if (recoveryForm) recoveryForm.style.display = "none";
+    if (setupForm) setupForm.style.display = "block";
+    
+    const setup1 = document.getElementById("pinSetup1");
+    const setup2 = document.getElementById("pinSetup2");
+    const setupAns = document.getElementById("pinSetupAnswer");
+    if (setup1) setup1.value = "";
+    if (setup2) setup2.value = "";
+    if (setupAns) setupAns.value = "";
+    
+    showToast("Acesso validado! Defina um novo PIN e pergunta de segurança.", "success");
+    
+    setTimeout(() => {
+      if (setup1) setup1.focus();
+    }, 100);
+  } else {
+    showUnlockError("Resposta de segurança incorreta.");
+    if (ansInput) {
+      ansInput.value = "";
+      ansInput.focus();
+    }
+  }
+}
+
+async function handleDeleteCase(caseId) {
+  if (!caseId) return;
+  const confirmed = confirm(
+    "Você realmente deseja apagar este caso?\n\n" +
+    "Todas as informações, eventos na linha do tempo e arquivos de evidência vinculados serão excluídos permanentemente da base local. Esta ação NÃO pode ser desfeita."
+  );
+  if (!confirmed) return;
+
+  appState.cases = appState.cases.filter(c => c.id !== caseId);
+  delete appState.eventsByCase[caseId];
+  delete appState.attachmentsByCase[caseId];
+  
+  await saveStateToDb();
+  showCaseList();
+  showToast("Caso excluído com sucesso!", "success");
 }
 
 /* ========================================
@@ -2894,6 +3110,7 @@ async function renderTimeline(caseId) {
             "anotacao": "Anotação",
             "arquivo": "Arquivo",
             "arma_fogo": "Arma de fogo",
+            "dinheiro": "Dinheiro em espécie",
             "outro": "Outro"
           };
           const typeLabelLoc = locTypeMap[locObj.objectType] || locObj.objectType || '—';
